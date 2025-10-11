@@ -81,7 +81,10 @@ pub(crate) fn audio_to_text(
     // Safe to call multiple times - only has effect on first call.
     whisper_rs::install_logging_hooks();
 
-    // Load Whisper model
+    // Load Whisper model with GPU acceleration enabled
+    let mut params = WhisperContextParameters::default();
+    params.use_gpu(true); // Enable GPU (Metal on macOS, CUDA, or Vulkan) - falls back to CPU if unavailable
+
     let ctx = WhisperContext::new_with_params(
         model_path
             .to_str()
@@ -89,7 +92,7 @@ pub(crate) fn audio_to_text(
                 path: model_path.to_path_buf(),
                 message: "Invalid UTF-8 in model path".to_string(),
             })?,
-        WhisperContextParameters::default(),
+        params,
     )
     .map_err(|e| SpeechToTextError::ModelLoadFailed {
         path: model_path.to_path_buf(),
