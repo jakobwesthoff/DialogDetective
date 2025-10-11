@@ -5,6 +5,7 @@
 
 mod audio_extraction;
 mod file_resolver;
+mod metadata_retrieval;
 mod speech_to_text;
 mod temp;
 
