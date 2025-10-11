@@ -6,6 +6,26 @@
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+/// Errors that can occur during file resolution
+#[derive(Debug, Error)]
+pub enum FileResolverError {
+    /// Path is not a directory
+    #[error("Path is not a directory: {0}")]
+    NotADirectory(PathBuf),
+
+    /// Failed to read directory
+    #[error("Failed to read directory {path}: {source}")]
+    ReadDirectoryFailed {
+        path: PathBuf,
+        source: io::Error,
+    },
+
+    /// Failed to read directory entry
+    #[error("Failed to read directory entry: {0}")]
+    ReadEntryFailed(#[from] io::Error),
+}
 
 /// Represents a detected video file
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,22 +47,22 @@ pub struct VideoFile {
 ///
 /// A vector of `VideoFile` structs representing all discovered video files,
 /// or an error if the directory cannot be read.
-pub(crate) fn scan_for_videos(dir_path: &Path) -> io::Result<Vec<VideoFile>> {
+pub(crate) fn scan_for_videos(dir_path: &Path) -> Result<Vec<VideoFile>, FileResolverError> {
     let mut video_files = Vec::new();
     scan_directory_recursive(dir_path, &mut video_files)?;
     Ok(video_files)
 }
 
 /// Recursively scans a directory and collects video files
-fn scan_directory_recursive(dir_path: &Path, video_files: &mut Vec<VideoFile>) -> io::Result<()> {
+fn scan_directory_recursive(dir_path: &Path, video_files: &mut Vec<VideoFile>) -> Result<(), FileResolverError> {
     if !dir_path.is_dir() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "Path is not a directory",
-        ));
+        return Err(FileResolverError::NotADirectory(dir_path.to_path_buf()));
     }
 
-    for entry in fs::read_dir(dir_path)? {
+    for entry in fs::read_dir(dir_path).map_err(|e| FileResolverError::ReadDirectoryFailed {
+        path: dir_path.to_path_buf(),
+        source: e,
+    })? {
         let entry = entry?;
         let path = entry.path();
 

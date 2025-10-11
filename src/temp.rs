@@ -6,6 +6,15 @@ use std::fs::{self, File};
 use std::io;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use thiserror::Error;
+
+/// Errors that can occur during temporary file operations
+#[derive(Debug, Error)]
+pub enum TempError {
+    /// Failed to create temporary file
+    #[error("Failed to create temporary file: {0}")]
+    CreateFileFailed(#[from] io::Error),
+}
 
 /// Guard for temporary resources that automatically cleans up on drop
 #[derive(Debug)]
@@ -62,7 +71,7 @@ impl Deref for TempGuard {
 /// // Use temp.path() to access the file
 /// // File is automatically deleted when temp goes out of scope
 /// ```
-pub(crate) fn create_temp_file(prefix: &str, extension: &str) -> io::Result<TempGuard> {
+pub(crate) fn create_temp_file(prefix: &str, extension: &str) -> Result<TempGuard, TempError> {
     let temp_dir = std::env::temp_dir();
 
     // Create a unique filename using ULID (monotonic and sortable)
