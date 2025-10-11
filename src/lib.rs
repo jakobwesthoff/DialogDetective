@@ -5,15 +5,17 @@
 
 mod audio_extraction;
 mod file_resolver;
+mod speech_to_text;
 mod temp;
 
 use audio_extraction::audio_from_video;
 use file_resolver::scan_for_videos;
+use speech_to_text::audio_to_text;
 
 // Re-export error types
 pub use audio_extraction::AudioExtractionError;
 pub use file_resolver::FileResolverError;
-use std::fs;
+pub use speech_to_text::SpeechToTextError;
 use std::io;
 use std::path::Path;
 use thiserror::Error;
@@ -29,20 +31,25 @@ pub enum DialogDetectiveError {
     #[error("Audio extraction error: {0}")]
     AudioExtraction(#[from] AudioExtractionError),
 
+    /// Error during speech-to-text transcription
+    #[error("Speech-to-text error: {0}")]
+    SpeechToText(#[from] SpeechToTextError),
+
     /// IO error
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
 }
 
-/// Investigates a directory for video files and extracts their audio
+/// Investigates a directory for video files and transcribes their audio
 ///
 /// This function scans the given directory recursively for video files,
-/// extracts audio from each video, and saves the audio files beside the
-/// original video files.
+/// extracts audio from each video, transcribes the audio to text using Whisper,
+/// and prints the transcript.
 ///
 /// # Arguments
 ///
 /// * `directory` - The directory path to investigate
+/// * `model_path` - Path to the Whisper model file (e.g., ggml-base.bin)
 ///
 /// # Returns
 ///
@@ -54,9 +61,12 @@ pub enum DialogDetectiveError {
 /// use dialog_detective::investigate_case;
 /// use std::path::Path;
 ///
-/// investigate_case(Path::new("/path/to/videos")).unwrap();
+/// investigate_case(
+///     Path::new("/path/to/videos"),
+///     Path::new("models/ggml-base.bin")
+/// ).unwrap();
 /// ```
-pub fn investigate_case(directory: &Path) -> Result<(), DialogDetectiveError> {
+pub fn investigate_case(directory: &Path, model_path: &Path) -> Result<(), DialogDetectiveError> {
     println!("DialogDetective reporting: Starting investigation in {}...", directory.display());
 
     // Scan directory for video files
@@ -70,7 +80,7 @@ pub fn investigate_case(directory: &Path) -> Result<(), DialogDetectiveError> {
 
     println!("Found {} video file(s)\n", videos.len());
 
-    // Extract audio from each video file
+    // Process each video file
     for (index, video) in videos.iter().enumerate() {
         println!("[{}/{}] Processing: {}", index + 1, videos.len(), video.path.display());
 
@@ -78,14 +88,13 @@ pub fn investigate_case(directory: &Path) -> Result<(), DialogDetectiveError> {
         println!("  Extracting audio...");
         let audio = audio_from_video(video)?;
 
-        // Determine output path (beside the video file)
-        let output_path = video.path.with_extension("wav");
+        // Transcribe audio to text
+        println!("  Transcribing audio...");
+        let transcript = audio_to_text(&audio, model_path)?;
 
-        // Copy audio file to the target location
-        println!("  Copying to: {}", output_path.display());
-        fs::copy(&*audio, &output_path)?;
-
-        println!("  ✓ Audio extracted: {}\n", output_path.display());
+        // Print transcript
+        println!("  Language: {}", transcript.language);
+        println!("  Transcript:\n{}\n", transcript.text);
     }
 
     println!("Investigation complete! Processed {} video(s).", videos.len());
