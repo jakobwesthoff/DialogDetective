@@ -4,6 +4,7 @@
 
 use std::fs::{self, File};
 use std::io;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
 /// Guard for temporary resources that automatically cleans up on drop
@@ -32,6 +33,14 @@ impl Drop for TempGuard {
                 let _ = fs::remove_file(path);
             }
         }
+    }
+}
+
+impl Deref for TempGuard {
+    type Target = Path;
+
+    fn deref(&self) -> &Self::Target {
+        self.path()
     }
 }
 

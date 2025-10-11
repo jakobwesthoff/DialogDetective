@@ -3,6 +3,7 @@
 //! This library provides the core functionality for investigating video files,
 //! analyzing their audio content, and solving the mystery of their true identity.
 
+mod audio_extraction;
 mod file_resolver;
 mod temp;
 
