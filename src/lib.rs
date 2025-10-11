@@ -4,6 +4,7 @@
 //! analyzing their audio content, and solving the mystery of their true identity.
 
 mod file_resolver;
+mod temp;
 
 /// Investigates a case and returns the findings
 ///

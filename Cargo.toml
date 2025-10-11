@@ -11,4 +11,6 @@ license = "MIT"
 # Binary: src/main.rs - CLI interface
 
 [dependencies]
+ffmpeg-sidecar = "2.2.0"
 infer = "0.19.0"
+ulid = "1.2.1"

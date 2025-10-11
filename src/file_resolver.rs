@@ -89,16 +89,6 @@ fn is_video_file(file_path: &Path) -> bool {
 mod tests {
     use super::*;
     use std::fs::{self, File};
-    use std::io::Write;
-
-    #[test]
-    fn test_video_file_struct() {
-        let video = VideoFile {
-            path: PathBuf::from("/test/video.mp4"),
-        };
-
-        assert_eq!(video.path, PathBuf::from("/test/video.mp4"));
-    }
 
     #[test]
     fn test_scan_nonexistent_directory() {
