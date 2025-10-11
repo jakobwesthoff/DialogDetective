@@ -1,0 +1,14 @@
+[package]
+name = "dialog_detective"
+version = "0.1.0"
+edition = "2024"
+authors = ["Jakob Westhoff"]
+description = "Automatically identify and rename unknown video files by analyzing their audio content"
+license = "MIT"
+
+# This crate provides both a library and a binary
+# Library: src/lib.rs - core functionality
+# Binary: src/main.rs - CLI interface
+
+[dependencies]
+infer = "0.19.0"

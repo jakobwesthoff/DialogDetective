@@ -1,0 +1,122 @@
+//! File resolver module for investigating video files
+//!
+//! This module provides functionality to scan directories and identify video files
+//! by analyzing their content using MIME type detection.
+
+use std::fs::{self, File};
+use std::io::{self, Read};
+use std::path::{Path, PathBuf};
+
+/// Represents a detected video file
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoFile {
+    /// Path to the video file
+    pub path: PathBuf,
+}
+
+/// Investigates a directory recursively to find all video files
+///
+/// This function scans the given directory and all subdirectories,
+/// analyzing each file to detect video files by their content (not extension).
+///
+/// # Arguments
+///
+/// * `dir_path` - The directory path to investigate
+///
+/// # Returns
+///
+/// A vector of `VideoFile` structs representing all discovered video files,
+/// or an error if the directory cannot be read.
+pub(crate) fn scan_for_videos(dir_path: &Path) -> io::Result<Vec<VideoFile>> {
+    let mut video_files = Vec::new();
+    scan_directory_recursive(dir_path, &mut video_files)?;
+    Ok(video_files)
+}
+
+/// Recursively scans a directory and collects video files
+fn scan_directory_recursive(dir_path: &Path, video_files: &mut Vec<VideoFile>) -> io::Result<()> {
+    if !dir_path.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Path is not a directory",
+        ));
+    }
+
+    for entry in fs::read_dir(dir_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            // Recursively investigate subdirectories
+            scan_directory_recursive(&path, video_files)?;
+        } else if path.is_file() {
+            // Analyze file to determine if it's a video
+            if is_video_file(&path) {
+                video_files.push(VideoFile { path });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Analyzes a file to determine if it's a video file
+///
+/// Returns true if the file is a recognized video format, false otherwise.
+/// Only reads the first 8KB of the file for efficiency.
+fn is_video_file(file_path: &Path) -> bool {
+    // Only read the first 8KB for file type detection
+    const BUFFER_SIZE: usize = 8192;
+
+    let mut file = match File::open(file_path) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+
+    let mut buffer = vec![0u8; BUFFER_SIZE];
+    let bytes_read = match file.read(&mut buffer) {
+        Ok(n) => n,
+        Err(_) => return false,
+    };
+
+    // Truncate buffer to actual bytes read
+    buffer.truncate(bytes_read);
+
+    infer::is_video(&buffer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use std::io::Write;
+
+    #[test]
+    fn test_video_file_struct() {
+        let video = VideoFile {
+            path: PathBuf::from("/test/video.mp4"),
+        };
+
+        assert_eq!(video.path, PathBuf::from("/test/video.mp4"));
+    }
+
+    #[test]
+    fn test_scan_nonexistent_directory() {
+        let result = scan_for_videos(Path::new("/nonexistent/path/that/does/not/exist"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_scan_file_instead_of_directory() {
+        // Create a temporary file
+        let temp_dir = std::env::temp_dir();
+        let temp_file = temp_dir.join("test_file.txt");
+        File::create(&temp_file).unwrap();
+
+        let result = scan_for_videos(&temp_file);
+        assert!(result.is_err());
+
+        // Cleanup
+        fs::remove_file(&temp_file).ok();
+    }
+}
