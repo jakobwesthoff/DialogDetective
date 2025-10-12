@@ -14,8 +14,10 @@ mod temp;
 use ai_matcher::{ClaudeCodeMatcher, EpisodeMatcher, NaivePromptGenerator};
 use audio_extraction::audio_from_video;
 use cache::CacheStorage;
-use file_resolver::{scan_for_videos, VideoFile};
-use metadata_retrieval::{CachedMetadataProvider, Episode, MetadataProvider, TVSeries, TvMazeProvider};
+use file_resolver::{VideoFile, scan_for_videos};
+use metadata_retrieval::{
+    CachedMetadataProvider, Episode, MetadataProvider, TVSeries, TvMazeProvider,
+};
 use speech_to_text::audio_to_text;
 use std::time::Duration;
 
@@ -43,9 +45,7 @@ pub enum ProgressEvent {
     },
 
     /// Fetching episode metadata
-    FetchingMetadata {
-        show_name: String,
-    },
+    FetchingMetadata { show_name: String },
 
     /// Metadata successfully fetched
     MetadataFetched {
@@ -57,9 +57,7 @@ pub enum ProgressEvent {
     ScanningVideos,
 
     /// Video files found
-    VideosFound {
-        count: usize,
-    },
+    VideosFound { count: usize },
 
     /// Processing a specific video file
     ProcessingVideo {
@@ -87,14 +85,6 @@ pub enum ProgressEvent {
         text: String,
     },
 
-    /// All transcriptions complete
-    TranscriptionPhaseComplete {
-        video_count: usize,
-    },
-
-    /// Starting episode matching phase
-    MatchingEpisodes,
-
     /// Matching a specific video to an episode
     MatchingVideo {
         index: usize,
@@ -103,9 +93,7 @@ pub enum ProgressEvent {
     },
 
     /// Investigation complete
-    Complete {
-        match_count: usize,
-    },
+    Complete { match_count: usize },
 }
 
 /// Represents the result of matching a video file to an episode
@@ -250,10 +238,13 @@ where
         count: videos.len(),
     });
 
-    // Store transcripts for each video
-    let mut transcripts = Vec::new();
+    // Initialize the matcher with the prompt generator
+    let prompt_generator = NaivePromptGenerator::default();
+    let matcher = ClaudeCodeMatcher::new(prompt_generator);
 
-    // Process each video file
+    let mut match_results = Vec::new();
+
+    // Process each video file: transcribe then match immediately
     for (index, video) in videos.iter().enumerate() {
         progress_callback(ProgressEvent::ProcessingVideo {
             index,
@@ -281,29 +272,14 @@ where
             text: transcript.text.clone(),
         });
 
-        transcripts.push(transcript);
-    }
-
-    progress_callback(ProgressEvent::TranscriptionPhaseComplete {
-        video_count: videos.len(),
-    });
-
-    // Initialize the matcher with the prompt generator
-    progress_callback(ProgressEvent::MatchingEpisodes);
-    let prompt_generator = NaivePromptGenerator::default();
-    let matcher = ClaudeCodeMatcher::new(prompt_generator);
-
-    let mut match_results = Vec::new();
-
-    // Match each video to an episode
-    for (index, (video, transcript)) in videos.iter().zip(transcripts.iter()).enumerate() {
+        // Match the video to an episode immediately after transcription
         progress_callback(ProgressEvent::MatchingVideo {
             index,
             total: videos.len(),
             video_path: video.path.clone(),
         });
 
-        let episode = matcher.match_episode(transcript, &series)?;
+        let episode = matcher.match_episode(&transcript, &series)?;
 
         let match_result = MatchResult {
             video: video.clone(),

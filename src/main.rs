@@ -1,4 +1,4 @@
-use dialog_detective::{investigate_case, ProgressEvent};
+use dialog_detective::{ProgressEvent, investigate_case};
 use std::env;
 use std::path::Path;
 use std::process;
@@ -6,31 +6,28 @@ use std::process;
 /// Handles progress events and prints formatted output to stdout
 fn handle_progress_event(event: ProgressEvent) {
     match event {
-        ProgressEvent::Started { directory, show_name } => {
-            println!(
-                "DialogDetective reporting: Starting investigation in {} for {}...",
-                directory.display(),
-                show_name
-            );
+        ProgressEvent::Started { show_name, .. } => {
+            println!("🔍 DialogDetective");
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            println!("📺 Investigating: {}", show_name);
         }
-        ProgressEvent::FetchingMetadata { show_name } => {
-            println!("\n=== Fetching Episode Metadata ===");
-            println!("Retrieving episode information for '{}'...", show_name);
+        ProgressEvent::FetchingMetadata { .. } => {
+            print!("📡 Fetching metadata... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
         }
-        ProgressEvent::MetadataFetched {
-            series_name,
-            season_count,
-        } => {
-            println!("Found {} season(s) for '{}'\n", season_count, series_name);
+        ProgressEvent::MetadataFetched { season_count, .. } => {
+            println!("✓ ({} seasons)", season_count);
         }
         ProgressEvent::ScanningVideos => {
-            println!("\nScanning for video files...");
+            print!("🔎 Scanning directory... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
         }
         ProgressEvent::VideosFound { count } => {
             if count == 0 {
-                println!("No video files found.");
+                println!("✗ No videos found");
             } else {
-                println!("Found {} video file(s)\n", count);
+                println!("✓ ({} files)", count);
+                println!();
             }
         }
         ProgressEvent::ProcessingVideo {
@@ -38,38 +35,31 @@ fn handle_progress_event(event: ProgressEvent) {
             total,
             video_path,
         } => {
-            println!("[{}/{}] Processing: {}", index + 1, total, video_path.display());
+            let filename = video_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown");
+            println!("🎬 [{}/{}] {}", index + 1, total, filename);
         }
         ProgressEvent::ExtractingAudio { .. } => {
-            println!("  Extracting audio...");
+            print!("   ├─ Extracting audio... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
         }
         ProgressEvent::TranscribingAudio { .. } => {
-            println!("  Transcribing audio...");
+            println!("✓");
+            print!("   ├─ Transcribing... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
         }
-        ProgressEvent::TranscriptionComplete {
-            language, text, ..
-        } => {
-            println!("  Language: {}", language);
-            println!("  Transcript:\n{}\n", text);
+        ProgressEvent::TranscriptionComplete { language, .. } => {
+            println!("✓ ({})", language);
         }
-        ProgressEvent::TranscriptionPhaseComplete { video_count } => {
-            println!(
-                "\nTranscription complete! Processed {} video(s).",
-                video_count
-            );
+        ProgressEvent::MatchingVideo { .. } => {
+            print!("   └─ Matching episode... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
         }
-        ProgressEvent::MatchingEpisodes => {
-            println!("\n=== Matching Episodes ===");
-        }
-        ProgressEvent::MatchingVideo {
-            index,
-            total,
-            video_path,
-        } => {
-            println!("[{}/{}] Matching: {}", index + 1, total, video_path.display());
-        }
-        ProgressEvent::Complete { match_count } => {
-            println!("\nInvestigation complete! Matched {} video(s).", match_count);
+        ProgressEvent::Complete { .. } => {
+            println!("✓\n");
+            println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         }
     }
 }
@@ -116,31 +106,36 @@ fn main() {
     // Run the investigation with progress callback
     match investigate_case(directory, model_path, show_name, handle_progress_event) {
         Ok(matches) => {
-            // Print results
-            println!("\n=== Match Results ===\n");
-
             if matches.is_empty() {
-                println!("No matches found.");
+                println!("❌ Case closed: No matches found");
                 return;
             }
 
-            for (index, match_result) in matches.iter().enumerate() {
-                println!("Match #{}", index + 1);
-                println!("  Video: {}", match_result.video.path.display());
+            println!("📋 Results:");
+            println!();
+
+            for match_result in matches.iter() {
+                let filename = match_result
+                    .video
+                    .path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown");
+
                 println!(
-                    "  Episode: S{:02}E{:02} - {}",
+                    "  {} ➜ S{:02}E{:02} - {}",
+                    filename,
                     match_result.episode.season_number,
                     match_result.episode.episode_number,
                     match_result.episode.name
                 );
-                println!("  Summary: {}", match_result.episode.summary);
-                println!();
             }
 
-            println!("Successfully matched {} video(s)!", matches.len());
+            println!();
+            println!("✅ Case solved: {} video(s) identified", matches.len());
         }
         Err(e) => {
-            eprintln!("\nError during investigation: {}", e);
+            eprintln!("\n❌ Investigation failed: {}", e);
             process::exit(1);
         }
     }
