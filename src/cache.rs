@@ -255,6 +255,79 @@ where
     pub fn cache_dir(&self) -> &PathBuf {
         &self.cache_dir
     }
+
+    /// Removes all expired items from the cache
+    ///
+    /// This method scans all cached items and removes those that have exceeded
+    /// their TTL. Only works on cache storages that have a TTL configured.
+    /// Returns the number of items that were removed.
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the count of removed items, or None if no TTL is set
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// if let Some(removed_count) = cache.clean()? {
+    ///     println!("Removed {} expired items", removed_count);
+    /// }
+    /// ```
+    pub fn clean(&self) -> Result<Option<usize>, CacheError> {
+        // Only works if TTL is set
+        let ttl = match self.ttl {
+            Some(ttl) => ttl,
+            None => return Ok(None),
+        };
+
+        let mut removed_count = 0;
+
+        // Read all files in the cache directory
+        let entries = fs::read_dir(&self.cache_dir).map_err(|e| CacheError::ReadFailed {
+            path: self.cache_dir.clone(),
+            source: e,
+        })?;
+
+        for entry in entries {
+            let entry = entry.map_err(|e| CacheError::ReadFailed {
+                path: self.cache_dir.clone(),
+                source: e,
+            })?;
+
+            let path = entry.path();
+
+            // Only process .json files
+            if !path.extension().map_or(false, |ext| ext == "json") {
+                continue;
+            }
+
+            // Try to read and deserialize the file
+            match fs::read_to_string(&path) {
+                Ok(content) => {
+                    // Try to deserialize to get the timestamp
+                    if let Ok(cached_item) =
+                        serde_json::from_str::<CachedItem<serde_json::Value>>(&content)
+                    {
+                        // Check if expired
+                        if let Ok(age) = SystemTime::now().duration_since(cached_item.timestamp) {
+                            if age > ttl {
+                                // Remove expired file
+                                if fs::remove_file(&path).is_ok() {
+                                    removed_count += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+                Err(_) => {
+                    // If we can't read the file, skip it
+                    continue;
+                }
+            }
+        }
+
+        Ok(Some(removed_count))
+    }
 }
 
 /// Sanitizes a name for use in file paths
