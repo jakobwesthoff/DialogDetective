@@ -3,11 +3,14 @@
 /// This module provides structures to represent TV series, seasons, and episodes
 /// with their associated metadata (names, summaries, etc.), as well as traits
 /// for implementing metadata providers.
+mod cached;
 mod tvmaze;
 mod tvmaze_types;
 
+pub(crate) use cached::CachedMetadataProvider;
 pub(crate) use tvmaze::TvMazeProvider;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Errors that can occur during metadata retrieval operations.
@@ -31,7 +34,7 @@ pub enum MetadataRetrievalError {
 }
 
 /// Represents a single episode of a TV series.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Episode {
     /// The season number this episode belongs to
     pub season_number: usize,
@@ -44,7 +47,7 @@ pub(crate) struct Episode {
 }
 
 /// Represents a season of a TV series.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct Season {
     /// The season number
     pub season_number: usize,
@@ -53,7 +56,7 @@ pub(crate) struct Season {
 }
 
 /// Represents a complete TV series with all seasons and episodes.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct TVSeries {
     /// The name of the TV series
     pub name: String,
