@@ -4,9 +4,14 @@
 //! using AI/LLM-based analysis. It generates prompts for language models to help solve
 //! the mystery of which episode a video file belongs to.
 
+mod claude_code;
+
+pub(crate) use claude_code::ClaudeCodeMatcher;
+
 use crate::file_resolver::VideoFile;
 use crate::metadata_retrieval::{Episode, TVSeries};
 use crate::speech_to_text::Transcript;
+use thiserror::Error;
 
 /// Represents the result of matching a video file to an episode
 ///
@@ -19,6 +24,53 @@ pub(crate) struct MatchResult {
 
     /// The episode that was matched
     pub episode: Episode,
+}
+
+/// Errors that can occur during episode matching
+#[derive(Debug, Error)]
+pub(crate) enum EpisodeMatchingError {
+    /// Failed to communicate with AI service
+    #[error("AI service error: {0}")]
+    ServiceError(String),
+
+    /// Failed to parse the AI's response
+    #[error("Failed to parse AI response: {0}")]
+    ParseError(String),
+
+    /// No matching episode could be determined
+    #[error("No matching episode found")]
+    NoMatchFound,
+}
+
+/// Trait for matching transcripts to episodes using AI/LLM analysis
+///
+/// Implementors of this trait orchestrate the complete matching process:
+/// generating prompts, sending them to LLMs, parsing responses, and
+/// identifying which episode a transcript belongs to.
+pub(crate) trait EpisodeMatcher {
+    /// Matches a transcript to an episode from the given series
+    ///
+    /// This method uses AI/LLM analysis to determine which episode
+    /// best matches the provided transcript by analyzing dialogue content.
+    ///
+    /// # Arguments
+    ///
+    /// * `transcript` - The audio transcript from the video file
+    /// * `series` - The TV series with all candidate episodes
+    ///
+    /// # Returns
+    ///
+    /// The episode that best matches the transcript
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the AI service fails, the response cannot be parsed,
+    /// or no suitable match can be found.
+    fn match_episode(
+        &self,
+        transcript: &Transcript,
+        series: &TVSeries,
+    ) -> Result<Episode, EpisodeMatchingError>;
 }
 
 /// Trait for generating prompts for LLM-based episode matching
