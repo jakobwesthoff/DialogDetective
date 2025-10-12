@@ -15,11 +15,11 @@ mod temp;
 use ai_matcher::{ClaudeCodeMatcher, EpisodeMatcher, GeminiCliMatcher, NaivePromptGenerator};
 use audio_extraction::audio_from_video;
 use cache::CacheStorage;
-use file_resolver::{VideoFile, scan_for_videos};
+use file_resolver::{VideoFile, compute_video_hash, scan_for_videos};
 use metadata_retrieval::{
     CachedMetadataProvider, Episode, MetadataProvider, TVSeries, TvMazeProvider,
 };
-use speech_to_text::audio_to_text;
+use speech_to_text::{Transcript, audio_to_text};
 use std::time::Duration;
 
 // Re-export error types
@@ -33,8 +33,8 @@ pub use speech_to_text::SpeechToTextError;
 
 // Re-export file operations types
 pub use file_operations::{
-    PlannedOperation, detect_duplicates, execute_copy, execute_rename, plan_operations,
-    sanitize_filename, format_filename,
+    PlannedOperation, detect_duplicates, execute_copy, execute_rename, format_filename,
+    plan_operations, sanitize_filename,
 };
 
 use std::io;
@@ -84,30 +84,54 @@ pub enum ProgressEvent {
         video_path: PathBuf,
     },
 
+    /// Computing hash of video file
+    Hashing { video_path: PathBuf },
+
+    /// Hash computation finished
+    HashingFinished { video_path: PathBuf },
+
     /// Extracting audio from video
-    ExtractingAudio {
+    AudioExtraction {
+        video_path: PathBuf,
+        temp_path: PathBuf,
+    },
+
+    /// Audio extraction finished
+    AudioExtractionFinished {
         video_path: PathBuf,
         temp_path: PathBuf,
     },
 
     /// Transcribing audio to text
-    TranscribingAudio {
+    Transcription {
         video_path: PathBuf,
         temp_path: PathBuf,
     },
 
-    /// Transcription completed
-    TranscriptionComplete {
+    /// Transcription finished
+    TranscriptionFinished {
         video_path: PathBuf,
         language: String,
         text: String,
     },
 
-    /// Matching a specific video to an episode
-    MatchingVideo {
+    /// Transcript loaded from cache
+    TranscriptCacheHit {
+        video_path: PathBuf,
+        language: String,
+    },
+
+    /// Matching video to an episode
+    Matching {
         index: usize,
         total: usize,
         video_path: PathBuf,
+    },
+
+    /// Episode matching finished
+    MatchingFinished {
+        video_path: PathBuf,
+        episode: Episode,
     },
 
     /// Investigation complete
@@ -236,13 +260,20 @@ where
         show_name: show_name.to_string(),
     });
 
-    // Initialize cache with 1-day TTL (24 hours)
-    let cache =
+    // Initialize metadata cache with 1-day TTL (24 hours)
+    let metadata_cache =
         CacheStorage::<TVSeries>::open("metadata", Some(Duration::from_secs(24 * 60 * 60)))?;
+
+    // Initialize transcript cache with 1-day TTL (24 hours)
+    let transcript_cache =
+        CacheStorage::<Transcript>::open("transcripts", Some(Duration::from_secs(24 * 60 * 60)))?;
+
+    // Clean expired transcripts at startup
+    transcript_cache.clean()?;
 
     // Wrap the provider with caching
     let tvmaze_provider = TvMazeProvider::new();
-    let provider = CachedMetadataProvider::new(tvmaze_provider, cache);
+    let provider = CachedMetadataProvider::new(tvmaze_provider, metadata_cache);
 
     let series = provider.fetch_series(show_name, season_filter)?;
 
@@ -281,34 +312,65 @@ where
             video_path: video.path.clone(),
         });
 
-        // Extract audio
-        let audio = audio_from_video(video)?;
-        progress_callback(ProgressEvent::ExtractingAudio {
+        // Compute video hash for cache lookup
+        progress_callback(ProgressEvent::Hashing {
             video_path: video.path.clone(),
-            temp_path: audio.to_path_buf(),
+        });
+        let video_hash = compute_video_hash(&video.path)?;
+        progress_callback(ProgressEvent::HashingFinished {
+            video_path: video.path.clone(),
         });
 
-        // Transcribe audio to text
-        progress_callback(ProgressEvent::TranscribingAudio {
-            video_path: video.path.clone(),
-            temp_path: audio.to_path_buf(),
-        });
-        let transcript = audio_to_text(&audio, model_path)?;
+        let transcript = if let Some(cached_transcript) = transcript_cache.load(&video_hash)? {
+            // Cache hit - use cached transcript
+            progress_callback(ProgressEvent::TranscriptCacheHit {
+                video_path: video.path.clone(),
+                language: cached_transcript.language.clone(),
+            });
+            cached_transcript
+        } else {
+            // Cache miss - extract audio and transcribe
+            progress_callback(ProgressEvent::AudioExtraction {
+                video_path: video.path.clone(),
+                temp_path: PathBuf::new(), // Will be set after extraction
+            });
+            let audio = audio_from_video(video)?;
+            progress_callback(ProgressEvent::AudioExtractionFinished {
+                video_path: video.path.clone(),
+                temp_path: audio.to_path_buf(),
+            });
 
-        progress_callback(ProgressEvent::TranscriptionComplete {
-            video_path: video.path.clone(),
-            language: transcript.language.clone(),
-            text: transcript.text.clone(),
-        });
+            progress_callback(ProgressEvent::Transcription {
+                video_path: video.path.clone(),
+                temp_path: audio.to_path_buf(),
+            });
+            let transcript = audio_to_text(&audio, model_path)?;
+
+            // Store in cache for future use
+            transcript_cache.store(&video_hash, &transcript)?;
+
+            progress_callback(ProgressEvent::TranscriptionFinished {
+                video_path: video.path.clone(),
+                language: transcript.language.clone(),
+                text: transcript.text.clone(),
+            });
+
+            transcript
+        };
 
         // Match the video to an episode immediately after transcription
-        progress_callback(ProgressEvent::MatchingVideo {
+        progress_callback(ProgressEvent::Matching {
             index,
             total: videos.len(),
             video_path: video.path.clone(),
         });
 
         let episode = matcher.match_episode(&transcript, &series)?;
+
+        progress_callback(ProgressEvent::MatchingFinished {
+            video_path: video.path.clone(),
+            episode: episode.clone(),
+        });
 
         let match_result = MatchResult {
             video: video.clone(),

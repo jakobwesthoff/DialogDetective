@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use dialog_detective::{
-    execute_copy, execute_rename, investigate_case, plan_operations, MatcherType, ProgressEvent,
+    MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case, plan_operations,
 };
 use std::path::PathBuf;
 use std::process;
@@ -12,7 +12,9 @@ use std::process;
 #[derive(Parser)]
 #[command(name = "dialog_detective")]
 #[command(version, about, long_about = None)]
-#[command(after_help = "💡 TIP: Use --season to filter episodes for faster, cheaper, more accurate matching!")]
+#[command(
+    after_help = "💡 TIP: Use --season to filter episodes for faster, cheaper, more accurate matching!"
+)]
 struct Cli {
     /// Directory containing video files to process
     video_dir: PathBuf,
@@ -124,21 +126,32 @@ fn handle_progress_event(event: ProgressEvent) {
                 .unwrap_or("unknown");
             println!("🎬 [{}/{}] {}", index + 1, total, filename);
         }
-        ProgressEvent::ExtractingAudio { .. } => {
+        ProgressEvent::Hashing { .. } => {
+            print!("   ├─ Computing hash... ");
+            std::io::Write::flush(&mut std::io::stdout()).ok();
+        }
+        ProgressEvent::AudioExtraction { .. } => {
             print!("   ├─ Extracting audio... ");
             std::io::Write::flush(&mut std::io::stdout()).ok();
         }
-        ProgressEvent::TranscribingAudio { .. } => {
-            println!("✓");
+        ProgressEvent::Transcription { .. } => {
             print!("   ├─ Transcribing... ");
             std::io::Write::flush(&mut std::io::stdout()).ok();
         }
-        ProgressEvent::TranscriptionComplete { language, .. } => {
+        ProgressEvent::TranscriptionFinished { language, .. } => {
             println!("✓ ({})", language);
         }
-        ProgressEvent::MatchingVideo { .. } => {
+        ProgressEvent::TranscriptCacheHit { language, .. } => {
+            println!("   ├─ Transcript cached... ✓ ({})", language);
+        }
+        ProgressEvent::Matching { .. } => {
             print!("   └─ Matching episode... ");
             std::io::Write::flush(&mut std::io::stdout()).ok();
+        }
+        ProgressEvent::HashingFinished { .. }
+        | ProgressEvent::AudioExtractionFinished { .. }
+        | ProgressEvent::MatchingFinished { .. } => {
+            println!("✓");
         }
         ProgressEvent::Complete { .. } => {
             println!("✓\n");
@@ -152,22 +165,34 @@ fn main() {
 
     // Validate arguments
     if !cli.video_dir.exists() {
-        eprintln!("❌ Error: Directory does not exist: {}", cli.video_dir.display());
+        eprintln!(
+            "❌ Error: Directory does not exist: {}",
+            cli.video_dir.display()
+        );
         process::exit(1);
     }
 
     if !cli.video_dir.is_dir() {
-        eprintln!("❌ Error: Path is not a directory: {}", cli.video_dir.display());
+        eprintln!(
+            "❌ Error: Path is not a directory: {}",
+            cli.video_dir.display()
+        );
         process::exit(1);
     }
 
     if !cli.model_path.exists() {
-        eprintln!("❌ Error: Model file does not exist: {}", cli.model_path.display());
+        eprintln!(
+            "❌ Error: Model file does not exist: {}",
+            cli.model_path.display()
+        );
         process::exit(1);
     }
 
     if !cli.model_path.is_file() {
-        eprintln!("❌ Error: Model path is not a file: {}", cli.model_path.display());
+        eprintln!(
+            "❌ Error: Model path is not a file: {}",
+            cli.model_path.display()
+        );
         process::exit(1);
     }
 
@@ -201,13 +226,14 @@ fn main() {
 
             // Plan file operations
             let output_dir = cli.output_dir.as_deref();
-            let operations = match plan_operations(&matches, &cli.show_name, &cli.format, output_dir) {
-                Ok(ops) => ops,
-                Err(e) => {
-                    eprintln!("\n❌ Failed to plan operations: {}", e);
-                    process::exit(1);
-                }
-            };
+            let operations =
+                match plan_operations(&matches, &cli.show_name, &cli.format, output_dir) {
+                    Ok(ops) => ops,
+                    Err(e) => {
+                        eprintln!("\n❌ Failed to plan operations: {}", e);
+                        process::exit(1);
+                    }
+                };
 
             // Display results based on mode
             match cli.mode {
@@ -216,24 +242,35 @@ fn main() {
                     println!();
 
                     for op in &operations {
-                        let source_name = op.source.file_name()
+                        let source_name = op
+                            .source
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("unknown");
-                        let dest_name = op.destination.file_name()
+                        let dest_name = op
+                            .destination
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("unknown");
 
-                        let operation_type = if output_dir.is_some() { "COPY" } else { "RENAME" };
+                        let operation_type = if output_dir.is_some() {
+                            "COPY"
+                        } else {
+                            "RENAME"
+                        };
 
                         if let Some(suffix) = op.duplicate_suffix {
-                            println!("  [{}] {} → {} (duplicate #{})", operation_type, source_name, dest_name, suffix);
+                            println!(
+                                "  [{}] {} → {} (duplicate #{})",
+                                operation_type, source_name, dest_name, suffix
+                            );
                         } else {
                             println!("  [{}] {} → {}", operation_type, source_name, dest_name);
                         }
-                        println!("         S{:02}E{:02} - {}",
-                            op.episode.season_number,
-                            op.episode.episode_number,
-                            op.episode.name);
+                        println!(
+                            "         S{:02}E{:02} - {}",
+                            op.episode.season_number, op.episode.episode_number, op.episode.name
+                        );
                         println!();
                     }
 
@@ -247,10 +284,14 @@ fn main() {
                     match execute_rename(&operations) {
                         Ok(errors) if errors.is_empty() => {
                             for op in &operations {
-                                let source_name = op.source.file_name()
+                                let source_name = op
+                                    .source
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
-                                let dest_name = op.destination.file_name()
+                                let dest_name = op
+                                    .destination
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
 
@@ -268,7 +309,9 @@ fn main() {
                             println!("❌ Failed to rename {} file(s):", errors.len());
 
                             for (op, error) in operations.iter().zip(errors.iter()) {
-                                let source_name = op.source.file_name()
+                                let source_name = op
+                                    .source
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
                                 println!("  ✗ {} - {}", source_name, error);
@@ -291,17 +334,25 @@ fn main() {
                     match execute_copy(&operations, output) {
                         Ok(errors) if errors.is_empty() => {
                             for op in &operations {
-                                let source_name = op.source.file_name()
+                                let source_name = op
+                                    .source
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
-                                let dest_name = op.destination.file_name()
+                                let dest_name = op
+                                    .destination
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
 
                                 println!("  ✓ {} → {}", source_name, dest_name);
                             }
                             println!();
-                            println!("✅ Successfully copied {} file(s) to {}", operations.len(), output.display());
+                            println!(
+                                "✅ Successfully copied {} file(s) to {}",
+                                operations.len(),
+                                output.display()
+                            );
                         }
                         Ok(errors) => {
                             let success_count = operations.len() - errors.len();
@@ -312,7 +363,9 @@ fn main() {
                             println!("❌ Failed to copy {} file(s):", errors.len());
 
                             for (op, error) in operations.iter().zip(errors.iter()) {
-                                let source_name = op.source.file_name()
+                                let source_name = op
+                                    .source
+                                    .file_name()
                                     .and_then(|n| n.to_str())
                                     .unwrap_or("unknown");
                                 println!("  ✗ {} - {}", source_name, error);

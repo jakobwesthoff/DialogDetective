@@ -3,6 +3,7 @@
 //! This module provides functionality to scan directories and identify video files
 //! by analyzing their content using MIME type detection.
 
+use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -103,6 +104,49 @@ fn is_video_file(file_path: &Path) -> bool {
     buffer.truncate(bytes_read);
 
     infer::is_video(&buffer)
+}
+
+/// Computes SHA256 hash of a video file for use as a cache key
+///
+/// This function reads the entire video file in 512KB chunks and computes
+/// a SHA256 hash. The hash is used to identify cached transcripts, ensuring
+/// that identical files can reuse cached results even if renamed or moved.
+///
+/// # Arguments
+///
+/// * `video_path` - Path to the video file to hash
+///
+/// # Returns
+///
+/// A hex-encoded SHA256 hash string, or an error if the file cannot be read.
+///
+/// # Examples
+///
+/// ```ignore
+/// let hash = compute_video_hash(Path::new("video.mp4"))?;
+/// println!("Video hash: {}", hash);
+/// ```
+pub(crate) fn compute_video_hash(video_path: &Path) -> Result<String, FileResolverError> {
+    const BUFFER_SIZE: usize = 512 * 1024; // 512KB chunks
+
+    let mut file = File::open(video_path).map_err(|e| FileResolverError::ReadEntryFailed(e))?;
+
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; BUFFER_SIZE];
+
+    loop {
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(FileResolverError::ReadEntryFailed)?;
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[cfg(test)]

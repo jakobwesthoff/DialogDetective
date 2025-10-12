@@ -49,7 +49,9 @@ pub fn sanitize_filename(name: &str) -> String {
         .collect();
 
     // Trim whitespace and dots from start/end
-    sanitized.trim_matches(|c: char| c.is_whitespace() || c == '.').to_string()
+    sanitized
+        .trim_matches(|c: char| c.is_whitespace() || c == '.')
+        .to_string()
 }
 
 /// Formats a filename based on a format string and episode information
@@ -146,7 +148,10 @@ pub fn detect_duplicates(matches: &[MatchResult]) -> HashMap<(usize, usize), Vec
             match_result.episode.season_number,
             match_result.episode.episode_number,
         );
-        groups.entry(key).or_insert_with(Vec::new).push(match_result.clone());
+        groups
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(match_result.clone());
     }
 
     groups
@@ -180,9 +185,7 @@ pub fn plan_operations(
             .extension()
             .and_then(|e| e.to_str())
             .ok_or_else(|| {
-                FileOperationError::MissingExtension(
-                    match_result.video.path.display().to_string(),
-                )
+                FileOperationError::MissingExtension(match_result.video.path.display().to_string())
             })?;
 
         // Generate base filename
@@ -246,7 +249,9 @@ pub fn plan_operations(
 }
 
 /// Executes rename operations in place
-pub fn execute_rename(operations: &[PlannedOperation]) -> Result<Vec<io::Error>, FileOperationError> {
+pub fn execute_rename(
+    operations: &[PlannedOperation],
+) -> Result<Vec<io::Error>, FileOperationError> {
     let mut errors = Vec::new();
 
     for op in operations {
@@ -318,8 +323,17 @@ mod tests {
 
     #[test]
     fn test_replace_with_padding() {
-        assert_eq!(replace_with_padding("S{season:02}E{episode:02}", "season", 1), "S01E{episode:02}");
-        assert_eq!(replace_with_padding("S01E{episode:02}", "episode", 2), "S01E02");
-        assert_eq!(replace_with_padding("Season {season}", "season", 5), "Season 5");
+        assert_eq!(
+            replace_with_padding("S{season:02}E{episode:02}", "season", 1),
+            "S01E{episode:02}"
+        );
+        assert_eq!(
+            replace_with_padding("S01E{episode:02}", "episode", 2),
+            "S01E02"
+        );
+        assert_eq!(
+            replace_with_padding("Season {season}", "season", 5),
+            "Season 5"
+        );
     }
 }

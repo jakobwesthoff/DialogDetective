@@ -4,6 +4,7 @@
 //! using Whisper speech recognition.
 
 use crate::audio_extraction::AudioFile;
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -38,7 +39,7 @@ pub enum SpeechToTextError {
 }
 
 /// Represents a transcribed text with metadata
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct Transcript {
     /// The transcribed text content
     pub text: String,
