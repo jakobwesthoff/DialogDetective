@@ -22,6 +22,56 @@ use metadata_retrieval::{
 use speech_to_text::{Transcript, audio_to_text};
 use std::time::Duration;
 
+/// Computes a cache key for matching results
+///
+/// The cache key is composed of the video hash, show name, season filter,
+/// and matcher type to ensure cached results are only reused when all
+/// matching parameters are identical.
+fn compute_matching_cache_key(
+    video_hash: &str,
+    show_name: &str,
+    season_filter: &Option<Vec<usize>>,
+    matcher_type: MatcherType,
+) -> String {
+    // Sanitize show name (lowercase, replace non-alphanumeric with underscores)
+    let sanitized_show = show_name
+        .to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+
+    // Format season filter
+    let seasons_str = match season_filter {
+        Some(seasons) if !seasons.is_empty() => {
+            let mut sorted = seasons.clone();
+            sorted.sort_unstable();
+            sorted
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join("-")
+        }
+        _ => "all".to_string(),
+    };
+
+    // Format matcher type
+    let matcher_str = match matcher_type {
+        MatcherType::Gemini => "gemini",
+        MatcherType::Claude => "claude",
+    };
+
+    format!(
+        "{}_{}_{}_{}",
+        video_hash, sanitized_show, seasons_str, matcher_str
+    )
+}
+
 // Re-export error types
 pub use ai_matcher::EpisodeMatchingError;
 pub use audio_extraction::AudioExtractionError;
@@ -130,6 +180,12 @@ pub enum ProgressEvent {
 
     /// Episode matching finished
     MatchingFinished {
+        video_path: PathBuf,
+        episode: Episode,
+    },
+
+    /// Matching result loaded from cache
+    MatchingCacheHit {
         video_path: PathBuf,
         episode: Episode,
     },
@@ -268,14 +324,19 @@ where
     let transcript_cache =
         CacheStorage::<Transcript>::open("transcripts", Some(Duration::from_secs(24 * 60 * 60)))?;
 
-    // Clean expired transcripts at startup
+    // Initialize matching cache with 1-day TTL (24 hours)
+    let matching_cache =
+        CacheStorage::<Episode>::open("matching", Some(Duration::from_secs(24 * 60 * 60)))?;
+
+    // Clean expired caches at startup
     transcript_cache.clean()?;
+    matching_cache.clean()?;
 
     // Wrap the provider with caching
     let tvmaze_provider = TvMazeProvider::new();
     let provider = CachedMetadataProvider::new(tvmaze_provider, metadata_cache);
 
-    let series = provider.fetch_series(show_name, season_filter)?;
+    let series = provider.fetch_series(show_name, season_filter.clone())?;
 
     progress_callback(ProgressEvent::MetadataFetched {
         series_name: series.name.clone(),
@@ -358,19 +419,37 @@ where
             transcript
         };
 
-        // Match the video to an episode immediately after transcription
-        progress_callback(ProgressEvent::Matching {
-            index,
-            total: videos.len(),
-            video_path: video.path.clone(),
-        });
+        // Match the video to an episode (with caching)
+        let matching_cache_key =
+            compute_matching_cache_key(&video_hash, show_name, &season_filter, matcher_type);
 
-        let episode = matcher.match_episode(&transcript, &series)?;
+        let episode = if let Some(cached_episode) = matching_cache.load(&matching_cache_key)? {
+            // Cache hit - use cached matching result
+            progress_callback(ProgressEvent::MatchingCacheHit {
+                video_path: video.path.clone(),
+                episode: cached_episode.clone(),
+            });
+            cached_episode
+        } else {
+            // Cache miss - perform matching
+            progress_callback(ProgressEvent::Matching {
+                index,
+                total: videos.len(),
+                video_path: video.path.clone(),
+            });
 
-        progress_callback(ProgressEvent::MatchingFinished {
-            video_path: video.path.clone(),
-            episode: episode.clone(),
-        });
+            let episode = matcher.match_episode(&transcript, &series)?;
+
+            // Store in cache for future use
+            matching_cache.store(&matching_cache_key, &episode)?;
+
+            progress_callback(ProgressEvent::MatchingFinished {
+                video_path: video.path.clone(),
+                episode: episode.clone(),
+            });
+
+            episode
+        };
 
         let match_result = MatchResult {
             video: video.clone(),

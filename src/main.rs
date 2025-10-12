@@ -148,6 +148,12 @@ fn handle_progress_event(event: ProgressEvent) {
             print!("   └─ Matching episode... ");
             std::io::Write::flush(&mut std::io::stdout()).ok();
         }
+        ProgressEvent::MatchingCacheHit { episode, .. } => {
+            println!(
+                "   └─ Match cached... ✓ (S{:02}E{:02} - {})",
+                episode.season_number, episode.episode_number, episode.name
+            );
+        }
         ProgressEvent::HashingFinished { .. }
         | ProgressEvent::AudioExtractionFinished { .. }
         | ProgressEvent::MatchingFinished { .. } => {
