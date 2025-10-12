@@ -17,10 +17,7 @@ pub enum FileResolverError {
 
     /// Failed to read directory
     #[error("Failed to read directory {path}: {source}")]
-    ReadDirectoryFailed {
-        path: PathBuf,
-        source: io::Error,
-    },
+    ReadDirectoryFailed { path: PathBuf, source: io::Error },
 
     /// Failed to read directory entry
     #[error("Failed to read directory entry: {0}")]
@@ -54,7 +51,10 @@ pub(crate) fn scan_for_videos(dir_path: &Path) -> Result<Vec<VideoFile>, FileRes
 }
 
 /// Recursively scans a directory and collects video files
-fn scan_directory_recursive(dir_path: &Path, video_files: &mut Vec<VideoFile>) -> Result<(), FileResolverError> {
+fn scan_directory_recursive(
+    dir_path: &Path,
+    video_files: &mut Vec<VideoFile>,
+) -> Result<(), FileResolverError> {
     if !dir_path.is_dir() {
         return Err(FileResolverError::NotADirectory(dir_path.to_path_buf()));
     }

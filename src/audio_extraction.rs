@@ -4,8 +4,8 @@
 //! using ffmpeg.
 
 use crate::file_resolver::VideoFile;
-use crate::temp::{create_temp_file, TempError, TempGuard};
-use ffmpeg_sidecar::command::{ffmpeg_is_installed, FfmpegCommand};
+use crate::temp::{TempError, TempGuard, create_temp_file};
+use ffmpeg_sidecar::command::{FfmpegCommand, ffmpeg_is_installed};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -14,7 +14,9 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum AudioExtractionError {
     /// FFmpeg is not installed
-    #[error("FFmpeg is not installed. Please install FFmpeg and ensure it's in your PATH, or place it in the same directory as this executable.")]
+    #[error(
+        "FFmpeg is not installed. Please install FFmpeg and ensure it's in your PATH, or place it in the same directory as this executable."
+    )]
     FfmpegNotInstalled,
 
     /// Invalid video file path
@@ -103,17 +105,23 @@ pub(crate) fn audio_from_video(video: &VideoFile) -> Result<AudioFile, AudioExtr
     // -c:a pcm_s16le: 16-bit PCM little-endian WAV (required by whisper)
     // -y: overwrite output file without asking
     FfmpegCommand::new()
-        .input(video.path.to_str().ok_or_else(|| {
-            AudioExtractionError::InvalidVideoPath(video.path.clone())
-        })?)
-        .args(["-vn"])  // No video
-        .args(["-ar", "16000"])  // 16kHz sample rate
-        .args(["-ac", "1"])  // Mono (1 channel)
-        .args(["-c:a", "pcm_s16le"])  // 16-bit PCM WAV
-        .args(["-y"])  // Overwrite without asking
-        .output(temp_audio.path().to_str().ok_or_else(|| {
-            AudioExtractionError::InvalidTempPath
-        })?)
+        .input(
+            video
+                .path
+                .to_str()
+                .ok_or_else(|| AudioExtractionError::InvalidVideoPath(video.path.clone()))?,
+        )
+        .args(["-vn"]) // No video
+        .args(["-ar", "16000"]) // 16kHz sample rate
+        .args(["-ac", "1"]) // Mono (1 channel)
+        .args(["-c:a", "pcm_s16le"]) // 16-bit PCM WAV
+        .args(["-y"]) // Overwrite without asking
+        .output(
+            temp_audio
+                .path()
+                .to_str()
+                .ok_or_else(|| AudioExtractionError::InvalidTempPath)?,
+        )
         .spawn()
         .map_err(|e| AudioExtractionError::FfmpegSpawnFailed(e.to_string()))?
         .iter()

@@ -1,5 +1,4 @@
 /// TVMaze metadata provider implementation.
-
 use super::tvmaze_types::{TvMazeEpisode, TvMazeShow};
 use super::{Episode, MetadataProvider, MetadataRetrievalError, Season, TVSeries};
 use std::collections::HashMap;
@@ -27,9 +26,7 @@ impl TvMazeProvider {
         Episode {
             season_number: tvmaze_episode.season,
             episode_number: tvmaze_episode.number,
-            name: tvmaze_episode
-                .name
-                .unwrap_or_else(|| "Unknown".to_string()),
+            name: tvmaze_episode.name.unwrap_or_else(|| "Unknown".to_string()),
             summary: tvmaze_episode
                 .summary
                 .map(|s| nanohtml2text::html2text(&s).trim().to_string())
@@ -48,9 +45,7 @@ impl TvMazeProvider {
         let episodes = tvmaze_show
             .embedded
             .ok_or_else(|| {
-                MetadataRetrievalError::InvalidData(
-                    "No episodes found in API response".to_string(),
-                )
+                MetadataRetrievalError::InvalidData("No episodes found in API response".to_string())
             })?
             .episodes;
 

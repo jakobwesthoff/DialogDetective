@@ -100,12 +100,11 @@ pub(crate) fn audio_to_text(
     })?;
 
     // Read WAV file
-    let reader = hound::WavReader::open(audio.deref()).map_err(|e| {
-        SpeechToTextError::AudioReadFailed {
+    let reader =
+        hound::WavReader::open(audio.deref()).map_err(|e| SpeechToTextError::AudioReadFailed {
             path: audio.deref().to_path_buf(),
             message: e.to_string(),
-        }
-    })?;
+        })?;
 
     // Verify audio format (16kHz mono as extracted by ffmpeg)
     let spec = reader.spec();

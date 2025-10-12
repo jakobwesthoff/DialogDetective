@@ -85,36 +85,44 @@ pub fn investigate_case(
         directory.display()
     );
 
-    // // Scan directory for video files
-    // println!("\nScanning for video files...");
-    // let videos = scan_for_videos(directory)?;
-    //
-    // if videos.is_empty() {
-    //     println!("No video files found.");
-    //     return Ok(());
-    // }
-    //
-    // println!("Found {} video file(s)\n", videos.len());
-    //
-    // // Process each video file
-    // for (index, video) in videos.iter().enumerate() {
-    //     println!("[{}/{}] Processing: {}", index + 1, videos.len(), video.path.display());
-    //
-    //     // Extract audio
-    //     println!("  Extracting audio...");
-    //     let audio = audio_from_video(video)?;
-    //
-    //     // Transcribe audio to text
-    //     println!("  Transcribing audio...");
-    //     let transcript = audio_to_text(&audio, model_path)?;
-    //
-    //     // Print transcript
-    //     println!("  Language: {}", transcript.language);
-    //     println!("  Transcript:\n{}\n", transcript.text);
-    // }
-    //
-    // println!("Investigation complete! Processed {} video(s).", videos.len());
-    //
+    // Scan directory for video files
+    println!("\nScanning for video files...");
+    let videos = scan_for_videos(directory)?;
+
+    if videos.is_empty() {
+        println!("No video files found.");
+        return Ok(());
+    }
+
+    println!("Found {} video file(s)\n", videos.len());
+
+    // Process each video file
+    for (index, video) in videos.iter().enumerate() {
+        println!(
+            "[{}/{}] Processing: {}",
+            index + 1,
+            videos.len(),
+            video.path.display()
+        );
+
+        // Extract audio
+        println!("  Extracting audio...");
+        let audio = audio_from_video(video)?;
+
+        // Transcribe audio to text
+        println!("  Transcribing audio...");
+        let transcript = audio_to_text(&audio, model_path)?;
+
+        // Print transcript
+        println!("  Language: {}", transcript.language);
+        println!("  Transcript:\n{}\n", transcript.text);
+    }
+
+    println!(
+        "Investigation complete! Processed {} video(s).",
+        videos.len()
+    );
+
     // Fetch episode metadata
     println!("\n=== Fetching Episode Metadata ===");
     println!("Retrieving episode information for '{}'...", show_name);

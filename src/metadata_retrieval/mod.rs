@@ -3,7 +3,6 @@
 /// This module provides structures to represent TV series, seasons, and episodes
 /// with their associated metadata (names, summaries, etc.), as well as traits
 /// for implementing metadata providers.
-
 mod tvmaze;
 mod tvmaze_types;
 

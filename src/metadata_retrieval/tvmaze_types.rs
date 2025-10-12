@@ -1,7 +1,6 @@
 /// TVMaze API response types for deserialization.
 ///
 /// These structures mirror the JSON response format from the TVMaze API.
-
 use serde::Deserialize;
 
 /// The top-level response from the TVMaze singlesearch endpoint.

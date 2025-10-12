@@ -9,7 +9,10 @@ fn main() {
 
     if args.len() != 4 {
         eprintln!("Usage: {} <directory> <model_path> <show_name>", args[0]);
-        eprintln!("\nExample: {} /path/to/videos models/ggml-base.bin \"Breaking Bad\"", args[0]);
+        eprintln!(
+            "\nExample: {} /path/to/videos models/ggml-base.bin \"Breaking Bad\"",
+            args[0]
+        );
         process::exit(1);
     }
 
