@@ -16,6 +16,7 @@ use speech_to_text::audio_to_text;
 // Re-export error types
 pub use audio_extraction::AudioExtractionError;
 pub use file_resolver::FileResolverError;
+pub use metadata_retrieval::MetadataRetrievalError;
 pub use speech_to_text::SpeechToTextError;
 use std::io;
 use std::path::Path;
@@ -35,6 +36,10 @@ pub enum DialogDetectiveError {
     /// Error during speech-to-text transcription
     #[error("Speech-to-text error: {0}")]
     SpeechToText(#[from] SpeechToTextError),
+
+    /// Error during metadata retrieval
+    #[error("Metadata retrieval error: {0}")]
+    MetadataRetrieval(#[from] MetadataRetrievalError),
 
     /// IO error
     #[error("IO error: {0}")]
