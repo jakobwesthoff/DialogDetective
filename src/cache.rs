@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::marker::PhantomData;
 use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
 use thiserror::Error;
 
 /// Errors that can occur during cache operations
@@ -49,6 +50,13 @@ pub enum CacheError {
     SerializationFailed(#[from] serde_json::Error),
 }
 
+/// Internal wrapper for cached data with timestamp
+#[derive(Debug, Serialize, Deserialize)]
+struct CachedItem<T> {
+    data: T,
+    timestamp: SystemTime,
+}
+
 /// A generic cache storage for serializable data
 ///
 /// This structure provides persistent caching of data that implements
@@ -57,6 +65,8 @@ pub enum CacheError {
 pub(crate) struct CacheStorage<T> {
     /// The directory where cached data is stored
     cache_dir: PathBuf,
+    /// Optional time-to-live for cached items
+    ttl: Option<Duration>,
     /// Phantom data for the generic type
     _phantom: PhantomData<T>,
 }
@@ -75,6 +85,8 @@ where
     /// # Arguments
     ///
     /// * `name` - The name for this cache storage
+    /// * `ttl` - Optional time-to-live for cached items. If provided, items older
+    ///           than this duration will be considered expired and automatically removed.
     ///
     /// # Returns
     ///
@@ -83,9 +95,13 @@ where
     /// # Examples
     ///
     /// ```ignore
-    /// let cache: CacheStorage<Transcript> = CacheStorage::open("transcripts")?;
+    /// // Cache without TTL
+    /// let cache: CacheStorage<Transcript> = CacheStorage::open("transcripts", None)?;
+    ///
+    /// // Cache with 24-hour TTL
+    /// let cache: CacheStorage<Transcript> = CacheStorage::open("transcripts", Some(Duration::from_secs(86400)))?;
     /// ```
-    pub fn open(name: &str) -> Result<Self, CacheError> {
+    pub fn open(name: &str, ttl: Option<Duration>) -> Result<Self, CacheError> {
         // Get the cache directory for this application
         let proj_dirs = directories::ProjectDirs::from("de", "westhoffswelt", "dialogdetective")
             .ok_or(CacheError::CacheDirectoryNotFound)?;
@@ -104,6 +120,7 @@ where
 
         Ok(Self {
             cache_dir,
+            ttl,
             _phantom: PhantomData,
         })
     }
@@ -116,9 +133,9 @@ where
     ///
     /// # Returns
     ///
-    /// An Option containing the cached data if it exists and is valid,
-    /// or None if the data doesn't exist. Returns an error if the data
-    /// exists but cannot be read or deserialized.
+    /// An Option containing the cached data if it exists and is not expired,
+    /// or None if the data doesn't exist or is expired. Returns an error if the data
+    /// exists but cannot be read or deserialized. Expired items are automatically removed.
     ///
     /// # Examples
     ///
@@ -142,17 +159,30 @@ where
             source: e,
         })?;
 
-        // Deserialize the JSON
-        let data =
+        // Deserialize the JSON (wrapped with timestamp)
+        let cached_item: CachedItem<T> =
             serde_json::from_str(&content).map_err(|e| CacheError::DeserializationFailed {
-                path: file_path,
+                path: file_path.clone(),
                 source: e,
             })?;
 
-        Ok(Some(data))
+        // Check if TTL is set and if the item is expired
+        if let Some(ttl) = self.ttl {
+            if let Ok(age) = SystemTime::now().duration_since(cached_item.timestamp) {
+                if age > ttl {
+                    // Item is expired, remove it
+                    let _ = self.remove(identifier);
+                    return Ok(None);
+                }
+            }
+        }
+
+        Ok(Some(cached_item.data))
     }
 
     /// Stores data in the cache with the given identifier
+    ///
+    /// If the item already exists, it will be overwritten with a new timestamp.
     ///
     /// # Arguments
     ///
@@ -172,14 +202,51 @@ where
         let sanitized_id = sanitize_name(identifier);
         let file_path = self.cache_dir.join(format!("{}.json", sanitized_id));
 
+        // Wrap data with current timestamp
+        let cached_item = CachedItem {
+            data,
+            timestamp: SystemTime::now(),
+        };
+
         // Serialize to JSON
-        let content = serde_json::to_string_pretty(data)?;
+        let content = serde_json::to_string_pretty(&cached_item)?;
 
         // Write to file
         fs::write(&file_path, content).map_err(|e| CacheError::WriteFailed {
             path: file_path,
             source: e,
         })?;
+
+        Ok(())
+    }
+
+    /// Removes a cached item with the given identifier
+    ///
+    /// # Arguments
+    ///
+    /// * `identifier` - A unique identifier for the cached data
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure. Returns Ok(()) even if the file
+    /// doesn't exist (idempotent operation).
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// cache.remove("video_123")?;
+    /// ```
+    pub fn remove(&self, identifier: &str) -> Result<(), CacheError> {
+        let sanitized_id = sanitize_name(identifier);
+        let file_path = self.cache_dir.join(format!("{}.json", sanitized_id));
+
+        // Remove file if it exists (ignore error if it doesn't exist)
+        if file_path.exists() {
+            fs::remove_file(&file_path).map_err(|e| CacheError::WriteFailed {
+                path: file_path,
+                source: e,
+            })?;
+        }
 
         Ok(())
     }
