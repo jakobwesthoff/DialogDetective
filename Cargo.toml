@@ -18,6 +18,7 @@ panic = "abort"   # Higher performance by disabling panic handlers.
 strip = true      # Ensures debug symbols are removed.
 
 [dependencies]
+clap = { version = "4.5.48", features = ["derive"] }
 directories = "6.0.0"
 ffmpeg-sidecar = "2.2.0"
 hound = "3.5.1"

@@ -6,12 +6,13 @@
 mod ai_matcher;
 mod audio_extraction;
 mod cache;
+mod file_operations;
 mod file_resolver;
 mod metadata_retrieval;
 mod speech_to_text;
 mod temp;
 
-use ai_matcher::{ClaudeCodeMatcher, EpisodeMatcher, NaivePromptGenerator};
+use ai_matcher::{ClaudeCodeMatcher, EpisodeMatcher, GeminiCliMatcher, NaivePromptGenerator};
 use audio_extraction::audio_from_video;
 use cache::CacheStorage;
 use file_resolver::{VideoFile, scan_for_videos};
@@ -25,12 +26,29 @@ use std::time::Duration;
 pub use ai_matcher::EpisodeMatchingError;
 pub use audio_extraction::AudioExtractionError;
 pub use cache::CacheError;
+pub use file_operations::FileOperationError;
 pub use file_resolver::FileResolverError;
 pub use metadata_retrieval::MetadataRetrievalError;
 pub use speech_to_text::SpeechToTextError;
+
+// Re-export file operations types
+pub use file_operations::{
+    PlannedOperation, detect_duplicates, execute_copy, execute_rename, plan_operations,
+    sanitize_filename, format_filename,
+};
+
 use std::io;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+/// AI matcher type selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatcherType {
+    /// Use Gemini CLI for episode matching
+    Gemini,
+    /// Use Claude Code CLI for episode matching
+    Claude,
+}
 
 /// Progress event emitted during investigation
 ///
@@ -156,6 +174,8 @@ pub enum DialogDetectiveError {
 /// * `directory` - The directory path to investigate
 /// * `model_path` - Path to the Whisper model file (e.g., ggml-base.bin)
 /// * `show_name` - The name of the TV show to fetch metadata for
+/// * `season_filter` - Optional list of season numbers to filter (None fetches all seasons)
+/// * `matcher_type` - The AI matcher to use (Gemini or Claude)
 /// * `progress_callback` - Closure called with progress events (can be empty for silent operation)
 ///
 /// # Returns
@@ -165,14 +185,16 @@ pub enum DialogDetectiveError {
 /// # Examples
 ///
 /// ```no_run
-/// use dialog_detective::{investigate_case, ProgressEvent};
+/// use dialog_detective::{investigate_case, ProgressEvent, MatcherType};
 /// use std::path::Path;
 ///
-/// // With progress output
+/// // With progress output and season filtering
 /// let matches = investigate_case(
 ///     Path::new("/path/to/videos"),
 ///     Path::new("models/ggml-base.bin"),
 ///     "Breaking Bad",
+///     Some(vec![1, 2]),  // Only seasons 1 and 2
+///     MatcherType::Gemini,
 ///     |event| {
 ///         match event {
 ///             ProgressEvent::ProcessingVideo { index, total, video_path } => {
@@ -183,11 +205,13 @@ pub enum DialogDetectiveError {
 ///     }
 /// ).unwrap();
 ///
-/// // Silent operation
+/// // Silent operation with all seasons
 /// let matches = investigate_case(
 ///     Path::new("/path/to/videos"),
 ///     Path::new("models/ggml-base.bin"),
 ///     "Breaking Bad",
+///     None,  // All seasons
+///     MatcherType::Claude,
 ///     |_| {} // Ignore all progress events
 /// ).unwrap();
 /// ```
@@ -195,6 +219,8 @@ pub fn investigate_case<F>(
     directory: &Path,
     model_path: &Path,
     show_name: &str,
+    season_filter: Option<Vec<usize>>,
+    matcher_type: MatcherType,
     mut progress_callback: F,
 ) -> Result<Vec<MatchResult>, DialogDetectiveError>
 where
@@ -218,7 +244,7 @@ where
     let tvmaze_provider = TvMazeProvider::new();
     let provider = CachedMetadataProvider::new(tvmaze_provider, cache);
 
-    let series = provider.fetch_series(show_name, None)?;
+    let series = provider.fetch_series(show_name, season_filter)?;
 
     progress_callback(ProgressEvent::MetadataFetched {
         series_name: series.name.clone(),
@@ -238,9 +264,12 @@ where
         count: videos.len(),
     });
 
-    // Initialize the matcher with the prompt generator
+    // Initialize the matcher based on the selected type
     let prompt_generator = NaivePromptGenerator::default();
-    let matcher = ClaudeCodeMatcher::new(prompt_generator);
+    let matcher: Box<dyn EpisodeMatcher> = match matcher_type {
+        MatcherType::Gemini => Box::new(GeminiCliMatcher::new(prompt_generator)),
+        MatcherType::Claude => Box::new(ClaudeCodeMatcher::new(prompt_generator)),
+    };
 
     let mut match_results = Vec::new();
 
