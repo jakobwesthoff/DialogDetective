@@ -5,8 +5,10 @@
 //! the mystery of which episode a video file belongs to.
 
 mod claude_code;
+mod gemini_cli;
 
 pub(crate) use claude_code::ClaudeCodeMatcher;
+pub(crate) use gemini_cli::GeminiCliMatcher;
 
 use crate::metadata_retrieval::{Episode, TVSeries};
 use crate::speech_to_text::Transcript;
