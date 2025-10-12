@@ -160,7 +160,7 @@ fn handle_progress_event(event: ProgressEvent) {
             println!("✓");
         }
         ProgressEvent::Complete { .. } => {
-            println!("✓\n");
+            println!();
             println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         }
     }
@@ -273,11 +273,6 @@ fn main() {
                         } else {
                             println!("  [{}] {} → {}", operation_type, source_name, dest_name);
                         }
-                        println!(
-                            "         S{:02}E{:02} - {}",
-                            op.episode.season_number, op.episode.episode_number, op.episode.name
-                        );
-                        println!();
                     }
 
                     println!("💡 Use --mode rename or --mode copy to apply these changes");
