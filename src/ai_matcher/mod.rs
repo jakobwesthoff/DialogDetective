@@ -8,27 +8,13 @@ mod claude_code;
 
 pub(crate) use claude_code::ClaudeCodeMatcher;
 
-use crate::file_resolver::VideoFile;
 use crate::metadata_retrieval::{Episode, TVSeries};
 use crate::speech_to_text::Transcript;
 use thiserror::Error;
 
-/// Represents the result of matching a video file to an episode
-///
-/// This structure contains the "evidence" that correlates a video file
-/// with a specific episode from a TV series.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct MatchResult {
-    /// The video file that was matched
-    pub video: VideoFile,
-
-    /// The episode that was matched
-    pub episode: Episode,
-}
-
 /// Errors that can occur during episode matching
 #[derive(Debug, Error)]
-pub(crate) enum EpisodeMatchingError {
+pub enum EpisodeMatchingError {
     /// Failed to communicate with AI service
     #[error("AI service error: {0}")]
     ServiceError(String),

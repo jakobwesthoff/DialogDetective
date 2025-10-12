@@ -43,8 +43,34 @@ fn main() {
     }
 
     // Run the investigation
-    if let Err(e) = investigate_case(directory, model_path, show_name) {
-        eprintln!("\nError during investigation: {}", e);
-        process::exit(1);
+    match investigate_case(directory, model_path, show_name) {
+        Ok(matches) => {
+            // Print results
+            println!("\n=== Match Results ===\n");
+
+            if matches.is_empty() {
+                println!("No matches found.");
+                return;
+            }
+
+            for (index, match_result) in matches.iter().enumerate() {
+                println!("Match #{}", index + 1);
+                println!("  Video: {}", match_result.video.path.display());
+                println!(
+                    "  Episode: S{:02}E{:02} - {}",
+                    match_result.episode.season_number,
+                    match_result.episode.episode_number,
+                    match_result.episode.name
+                );
+                println!("  Summary: {}", match_result.episode.summary);
+                println!();
+            }
+
+            println!("Successfully matched {} video(s)!", matches.len());
+        }
+        Err(e) => {
+            eprintln!("\nError during investigation: {}", e);
+            process::exit(1);
+        }
     }
 }

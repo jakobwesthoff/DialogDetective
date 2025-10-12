@@ -35,7 +35,7 @@ pub enum MetadataRetrievalError {
 
 /// Represents a single episode of a TV series.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Episode {
+pub struct Episode {
     /// The season number this episode belongs to
     pub season_number: usize,
     /// The episode number within the season
