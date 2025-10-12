@@ -5,6 +5,7 @@
 
 mod ai_matcher;
 mod audio_extraction;
+mod cache;
 mod file_resolver;
 mod metadata_retrieval;
 mod speech_to_text;
@@ -18,6 +19,7 @@ use speech_to_text::audio_to_text;
 
 // Re-export error types
 pub use audio_extraction::AudioExtractionError;
+pub use cache::CacheError;
 pub use file_resolver::FileResolverError;
 pub use metadata_retrieval::MetadataRetrievalError;
 pub use speech_to_text::SpeechToTextError;
