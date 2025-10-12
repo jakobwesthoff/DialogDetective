@@ -13,9 +13,11 @@ mod temp;
 
 use ai_matcher::{NaivePromptGenerator, SinglePromptGenerator};
 use audio_extraction::audio_from_video;
+use cache::CacheStorage;
 use file_resolver::scan_for_videos;
-use metadata_retrieval::{MetadataProvider, TvMazeProvider};
+use metadata_retrieval::{CachedMetadataProvider, MetadataProvider, TVSeries, TvMazeProvider};
 use speech_to_text::audio_to_text;
+use std::time::Duration;
 
 // Re-export error types
 pub use audio_extraction::AudioExtractionError;
@@ -45,6 +47,10 @@ pub enum DialogDetectiveError {
     /// Error during metadata retrieval
     #[error("Metadata retrieval error: {0}")]
     MetadataRetrieval(#[from] MetadataRetrievalError),
+
+    /// Error during cache operations
+    #[error("Cache error: {0}")]
+    Cache(#[from] CacheError),
 
     /// IO error
     #[error("IO error: {0}")]
@@ -90,11 +96,18 @@ pub fn investigate_case(
         show_name
     );
 
-    // Fetch episode metadata
+    // Fetch episode metadata with caching
     println!("\n=== Fetching Episode Metadata ===");
     println!("Retrieving episode information for '{}'...", show_name);
 
-    let provider = TvMazeProvider::new();
+    // Initialize cache with 1-day TTL (24 hours)
+    let cache =
+        CacheStorage::<TVSeries>::open("metadata", Some(Duration::from_secs(24 * 60 * 60)))?;
+
+    // Wrap the provider with caching
+    let tvmaze_provider = TvMazeProvider::new();
+    let provider = CachedMetadataProvider::new(tvmaze_provider, cache);
+
     let series = provider.fetch_series(show_name, None)?;
 
     println!(
