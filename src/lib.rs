@@ -3,12 +3,14 @@
 //! This library provides the core functionality for investigating video files,
 //! analyzing their audio content, and solving the mystery of their true identity.
 
+mod ai_matcher;
 mod audio_extraction;
 mod file_resolver;
 mod metadata_retrieval;
 mod speech_to_text;
 mod temp;
 
+use ai_matcher::{NaivePromptGenerator, SinglePromptGenerator};
 use audio_extraction::audio_from_video;
 use file_resolver::scan_for_videos;
 use metadata_retrieval::{MetadataProvider, TvMazeProvider};
@@ -81,8 +83,22 @@ pub fn investigate_case(
     show_name: &str,
 ) -> Result<(), DialogDetectiveError> {
     println!(
-        "DialogDetective reporting: Starting investigation in {}...",
-        directory.display()
+        "DialogDetective reporting: Starting investigation in {} for {}...",
+        directory.display(),
+        show_name
+    );
+
+    // Fetch episode metadata
+    println!("\n=== Fetching Episode Metadata ===");
+    println!("Retrieving episode information for '{}'...", show_name);
+
+    let provider = TvMazeProvider::new();
+    let series = provider.fetch_series(show_name, None)?;
+
+    println!(
+        "Found {} season(s) for '{}'\n",
+        series.seasons.len(),
+        series.name
     );
 
     // Scan directory for video files
@@ -95,6 +111,9 @@ pub fn investigate_case(
     }
 
     println!("Found {} video file(s)\n", videos.len());
+
+    // Store transcripts for each video
+    let mut transcripts = Vec::new();
 
     // Process each video file
     for (index, video) in videos.iter().enumerate() {
@@ -116,6 +135,8 @@ pub fn investigate_case(
         // Print transcript
         println!("  Language: {}", transcript.language);
         println!("  Transcript:\n{}\n", transcript.text);
+
+        transcripts.push(transcript);
     }
 
     println!(
@@ -123,43 +144,20 @@ pub fn investigate_case(
         videos.len()
     );
 
-    // Fetch episode metadata
-    println!("\n=== Fetching Episode Metadata ===");
-    println!("Retrieving episode information for '{}'...", show_name);
+    // Generate prompts for each video
+    let prompt_generator = NaivePromptGenerator::default();
 
-    let provider = TvMazeProvider::new();
-    let series = provider.fetch_series(show_name, None)?;
+    for (index, transcript) in transcripts.iter().enumerate() {
+        println!(
+            "=== Generated Prompt for Video {}/{}: {} ===\n",
+            index + 1,
+            videos.len(),
+            videos[index].path.display()
+        );
 
-    println!("\n📺 Series: {}", series.name);
-    println!("Found {} season(s)\n", series.seasons.len());
-
-    // Display all seasons and episodes
-    for season in &series.seasons {
-        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        if season.season_number == 0 {
-            println!("🎬 Specials ({} episode(s))", season.episodes.len());
-        } else {
-            println!(
-                "📁 Season {} ({} episode(s))",
-                season.season_number,
-                season.episodes.len()
-            );
-        }
-        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-
-        for episode in &season.episodes {
-            println!(
-                "  S{:02}E{:02} - {}",
-                episode.season_number, episode.episode_number, episode.name
-            );
-            if !episode.summary.is_empty() {
-                // Print summary with indentation
-                for line in episode.summary.lines() {
-                    println!("         {}", line);
-                }
-            }
-            println!();
-        }
+        let prompt = prompt_generator.generate_single_prompt(transcript, &series);
+        println!("{}\n", prompt);
+        println!("=== End of Prompt ===\n");
     }
 
     Ok(())
