@@ -27,8 +27,86 @@ pub use file_resolver::FileResolverError;
 pub use metadata_retrieval::MetadataRetrievalError;
 pub use speech_to_text::SpeechToTextError;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
+
+/// Progress event emitted during investigation
+///
+/// These events allow library users to track progress and provide feedback
+/// during the investigation process.
+#[derive(Debug, Clone)]
+pub enum ProgressEvent {
+    /// Investigation started
+    Started {
+        directory: PathBuf,
+        show_name: String,
+    },
+
+    /// Fetching episode metadata
+    FetchingMetadata {
+        show_name: String,
+    },
+
+    /// Metadata successfully fetched
+    MetadataFetched {
+        series_name: String,
+        season_count: usize,
+    },
+
+    /// Scanning directory for video files
+    ScanningVideos,
+
+    /// Video files found
+    VideosFound {
+        count: usize,
+    },
+
+    /// Processing a specific video file
+    ProcessingVideo {
+        index: usize,
+        total: usize,
+        video_path: PathBuf,
+    },
+
+    /// Extracting audio from video
+    ExtractingAudio {
+        video_path: PathBuf,
+        temp_path: PathBuf,
+    },
+
+    /// Transcribing audio to text
+    TranscribingAudio {
+        video_path: PathBuf,
+        temp_path: PathBuf,
+    },
+
+    /// Transcription completed
+    TranscriptionComplete {
+        video_path: PathBuf,
+        language: String,
+        text: String,
+    },
+
+    /// All transcriptions complete
+    TranscriptionPhaseComplete {
+        video_count: usize,
+    },
+
+    /// Starting episode matching phase
+    MatchingEpisodes,
+
+    /// Matching a specific video to an episode
+    MatchingVideo {
+        index: usize,
+        total: usize,
+        video_path: PathBuf,
+    },
+
+    /// Investigation complete
+    Complete {
+        match_count: usize,
+    },
+}
 
 /// Represents the result of matching a video file to an episode
 ///
@@ -82,11 +160,15 @@ pub enum DialogDetectiveError {
 /// fetches episode metadata for the given show, and uses AI to match each video
 /// to its corresponding episode.
 ///
+/// Progress events are emitted through the provided callback, allowing library
+/// users to track progress, display status, or remain silent.
+///
 /// # Arguments
 ///
 /// * `directory` - The directory path to investigate
 /// * `model_path` - Path to the Whisper model file (e.g., ggml-base.bin)
 /// * `show_name` - The name of the TV show to fetch metadata for
+/// * `progress_callback` - Closure called with progress events (can be empty for silent operation)
 ///
 /// # Returns
 ///
@@ -95,37 +177,50 @@ pub enum DialogDetectiveError {
 /// # Examples
 ///
 /// ```no_run
-/// use dialog_detective::investigate_case;
+/// use dialog_detective::{investigate_case, ProgressEvent};
 /// use std::path::Path;
 ///
+/// // With progress output
 /// let matches = investigate_case(
 ///     Path::new("/path/to/videos"),
 ///     Path::new("models/ggml-base.bin"),
-///     "Breaking Bad"
+///     "Breaking Bad",
+///     |event| {
+///         match event {
+///             ProgressEvent::ProcessingVideo { index, total, video_path } => {
+///                 println!("[{}/{}] Processing: {}", index, total, video_path.display());
+///             }
+///             _ => {} // Handle other events as needed
+///         }
+///     }
 /// ).unwrap();
 ///
-/// for match_result in matches {
-///     println!("Matched: {} -> S{:02}E{:02}",
-///         match_result.video.path.display(),
-///         match_result.episode.season_number,
-///         match_result.episode.episode_number
-///     );
-/// }
+/// // Silent operation
+/// let matches = investigate_case(
+///     Path::new("/path/to/videos"),
+///     Path::new("models/ggml-base.bin"),
+///     "Breaking Bad",
+///     |_| {} // Ignore all progress events
+/// ).unwrap();
 /// ```
-pub fn investigate_case(
+pub fn investigate_case<F>(
     directory: &Path,
     model_path: &Path,
     show_name: &str,
-) -> Result<Vec<MatchResult>, DialogDetectiveError> {
-    println!(
-        "DialogDetective reporting: Starting investigation in {} for {}...",
-        directory.display(),
-        show_name
-    );
+    mut progress_callback: F,
+) -> Result<Vec<MatchResult>, DialogDetectiveError>
+where
+    F: FnMut(ProgressEvent),
+{
+    progress_callback(ProgressEvent::Started {
+        directory: directory.to_path_buf(),
+        show_name: show_name.to_string(),
+    });
 
     // Fetch episode metadata with caching
-    println!("\n=== Fetching Episode Metadata ===");
-    println!("Retrieving episode information for '{}'...", show_name);
+    progress_callback(ProgressEvent::FetchingMetadata {
+        show_name: show_name.to_string(),
+    });
 
     // Initialize cache with 1-day TTL (24 hours)
     let cache =
@@ -137,57 +232,64 @@ pub fn investigate_case(
 
     let series = provider.fetch_series(show_name, None)?;
 
-    println!(
-        "Found {} season(s) for '{}'\n",
-        series.seasons.len(),
-        series.name
-    );
+    progress_callback(ProgressEvent::MetadataFetched {
+        series_name: series.name.clone(),
+        season_count: series.seasons.len(),
+    });
 
     // Scan directory for video files
-    println!("\nScanning for video files...");
+    progress_callback(ProgressEvent::ScanningVideos);
     let videos = scan_for_videos(directory)?;
 
     if videos.is_empty() {
-        println!("No video files found.");
+        progress_callback(ProgressEvent::VideosFound { count: 0 });
         return Ok(Vec::new());
     }
 
-    println!("Found {} video file(s)\n", videos.len());
+    progress_callback(ProgressEvent::VideosFound {
+        count: videos.len(),
+    });
 
     // Store transcripts for each video
     let mut transcripts = Vec::new();
 
     // Process each video file
     for (index, video) in videos.iter().enumerate() {
-        println!(
-            "[{}/{}] Processing: {}",
-            index + 1,
-            videos.len(),
-            video.path.display()
-        );
+        progress_callback(ProgressEvent::ProcessingVideo {
+            index,
+            total: videos.len(),
+            video_path: video.path.clone(),
+        });
 
         // Extract audio
-        println!("  Extracting audio...");
         let audio = audio_from_video(video)?;
+        progress_callback(ProgressEvent::ExtractingAudio {
+            video_path: video.path.clone(),
+            temp_path: audio.to_path_buf(),
+        });
 
         // Transcribe audio to text
-        println!("  Transcribing audio...");
+        progress_callback(ProgressEvent::TranscribingAudio {
+            video_path: video.path.clone(),
+            temp_path: audio.to_path_buf(),
+        });
         let transcript = audio_to_text(&audio, model_path)?;
 
-        // Print transcript
-        println!("  Language: {}", transcript.language);
-        println!("  Transcript:\n{}\n", transcript.text);
+        progress_callback(ProgressEvent::TranscriptionComplete {
+            video_path: video.path.clone(),
+            language: transcript.language.clone(),
+            text: transcript.text.clone(),
+        });
 
         transcripts.push(transcript);
     }
 
-    println!(
-        "\nTranscription complete! Processed {} video(s).",
-        videos.len()
-    );
+    progress_callback(ProgressEvent::TranscriptionPhaseComplete {
+        video_count: videos.len(),
+    });
 
     // Initialize the matcher with the prompt generator
-    println!("\n=== Matching Episodes ===");
+    progress_callback(ProgressEvent::MatchingEpisodes);
     let prompt_generator = NaivePromptGenerator::default();
     let matcher = ClaudeCodeMatcher::new(prompt_generator);
 
@@ -195,12 +297,11 @@ pub fn investigate_case(
 
     // Match each video to an episode
     for (index, (video, transcript)) in videos.iter().zip(transcripts.iter()).enumerate() {
-        println!(
-            "[{}/{}] Matching: {}",
-            index + 1,
-            videos.len(),
-            video.path.display()
-        );
+        progress_callback(ProgressEvent::MatchingVideo {
+            index,
+            total: videos.len(),
+            video_path: video.path.clone(),
+        });
 
         let episode = matcher.match_episode(transcript, &series)?;
 
@@ -212,10 +313,9 @@ pub fn investigate_case(
         match_results.push(match_result);
     }
 
-    println!(
-        "\nInvestigation complete! Matched {} video(s).",
-        match_results.len()
-    );
+    progress_callback(ProgressEvent::Complete {
+        match_count: match_results.len(),
+    });
 
     Ok(match_results)
 }
