@@ -11,6 +11,7 @@ mod temp;
 
 use audio_extraction::audio_from_video;
 use file_resolver::scan_for_videos;
+use metadata_retrieval::{MetadataProvider, TvMazeProvider};
 use speech_to_text::audio_to_text;
 
 // Re-export error types
@@ -50,12 +51,13 @@ pub enum DialogDetectiveError {
 ///
 /// This function scans the given directory recursively for video files,
 /// extracts audio from each video, transcribes the audio to text using Whisper,
-/// and prints the transcript.
+/// fetches episode metadata for the given show, and prints all information.
 ///
 /// # Arguments
 ///
 /// * `directory` - The directory path to investigate
 /// * `model_path` - Path to the Whisper model file (e.g., ggml-base.bin)
+/// * `show_name` - The name of the TV show to fetch metadata for
 ///
 /// # Returns
 ///
@@ -69,41 +71,88 @@ pub enum DialogDetectiveError {
 ///
 /// investigate_case(
 ///     Path::new("/path/to/videos"),
-///     Path::new("models/ggml-base.bin")
+///     Path::new("models/ggml-base.bin"),
+///     "Breaking Bad"
 /// ).unwrap();
 /// ```
-pub fn investigate_case(directory: &Path, model_path: &Path) -> Result<(), DialogDetectiveError> {
-    println!("DialogDetective reporting: Starting investigation in {}...", directory.display());
+pub fn investigate_case(
+    directory: &Path,
+    model_path: &Path,
+    show_name: &str,
+) -> Result<(), DialogDetectiveError> {
+    println!(
+        "DialogDetective reporting: Starting investigation in {}...",
+        directory.display()
+    );
 
-    // Scan directory for video files
-    println!("\nScanning for video files...");
-    let videos = scan_for_videos(directory)?;
+    // // Scan directory for video files
+    // println!("\nScanning for video files...");
+    // let videos = scan_for_videos(directory)?;
+    //
+    // if videos.is_empty() {
+    //     println!("No video files found.");
+    //     return Ok(());
+    // }
+    //
+    // println!("Found {} video file(s)\n", videos.len());
+    //
+    // // Process each video file
+    // for (index, video) in videos.iter().enumerate() {
+    //     println!("[{}/{}] Processing: {}", index + 1, videos.len(), video.path.display());
+    //
+    //     // Extract audio
+    //     println!("  Extracting audio...");
+    //     let audio = audio_from_video(video)?;
+    //
+    //     // Transcribe audio to text
+    //     println!("  Transcribing audio...");
+    //     let transcript = audio_to_text(&audio, model_path)?;
+    //
+    //     // Print transcript
+    //     println!("  Language: {}", transcript.language);
+    //     println!("  Transcript:\n{}\n", transcript.text);
+    // }
+    //
+    // println!("Investigation complete! Processed {} video(s).", videos.len());
+    //
+    // Fetch episode metadata
+    println!("\n=== Fetching Episode Metadata ===");
+    println!("Retrieving episode information for '{}'...", show_name);
 
-    if videos.is_empty() {
-        println!("No video files found.");
-        return Ok(());
+    let provider = TvMazeProvider::new();
+    let series = provider.fetch_series(show_name, None)?;
+
+    println!("\n📺 Series: {}", series.name);
+    println!("Found {} season(s)\n", series.seasons.len());
+
+    // Display all seasons and episodes
+    for season in &series.seasons {
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        if season.season_number == 0 {
+            println!("🎬 Specials ({} episode(s))", season.episodes.len());
+        } else {
+            println!(
+                "📁 Season {} ({} episode(s))",
+                season.season_number,
+                season.episodes.len()
+            );
+        }
+        println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+        for episode in &season.episodes {
+            println!(
+                "  S{:02}E{:02} - {}",
+                episode.season_number, episode.episode_number, episode.name
+            );
+            if !episode.summary.is_empty() {
+                // Print summary with indentation
+                for line in episode.summary.lines() {
+                    println!("         {}", line);
+                }
+            }
+            println!();
+        }
     }
-
-    println!("Found {} video file(s)\n", videos.len());
-
-    // Process each video file
-    for (index, video) in videos.iter().enumerate() {
-        println!("[{}/{}] Processing: {}", index + 1, videos.len(), video.path.display());
-
-        // Extract audio
-        println!("  Extracting audio...");
-        let audio = audio_from_video(video)?;
-
-        // Transcribe audio to text
-        println!("  Transcribing audio...");
-        let transcript = audio_to_text(&audio, model_path)?;
-
-        // Print transcript
-        println!("  Language: {}", transcript.language);
-        println!("  Transcript:\n{}\n", transcript.text);
-    }
-
-    println!("Investigation complete! Processed {} video(s).", videos.len());
 
     Ok(())
 }

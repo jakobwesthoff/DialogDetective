@@ -4,12 +4,31 @@
 /// with their associated metadata (names, summaries, etc.), as well as traits
 /// for implementing metadata providers.
 
+mod tvmaze;
+mod tvmaze_types;
+
+pub(crate) use tvmaze::TvMazeProvider;
+
 use thiserror::Error;
 
 /// Errors that can occur during metadata retrieval operations.
 #[derive(Debug, Error)]
 pub enum MetadataRetrievalError {
-    // Error variants will be added as needed during implementation
+    /// Request to the metadata provider failed
+    #[error("Request failed: {0}")]
+    RequestError(String),
+
+    /// Failed to parse the provider's JSON response
+    #[error("Failed to parse API response: {0}")]
+    ParseError(String),
+
+    /// The requested series was not found
+    #[error("Series not found: {0}")]
+    SeriesNotFound(String),
+
+    /// The API returned invalid or unexpected data
+    #[error("API returned invalid data: {0}")]
+    InvalidData(String),
 }
 
 /// Represents a single episode of a TV series.

@@ -7,14 +7,15 @@ fn main() {
     // Get arguments from command line
     let args: Vec<String> = env::args().collect();
 
-    if args.len() != 3 {
-        eprintln!("Usage: {} <directory> <model_path>", args[0]);
-        eprintln!("\nExample: {} /path/to/videos models/ggml-base.bin", args[0]);
+    if args.len() != 4 {
+        eprintln!("Usage: {} <directory> <model_path> <show_name>", args[0]);
+        eprintln!("\nExample: {} /path/to/videos models/ggml-base.bin \"Breaking Bad\"", args[0]);
         process::exit(1);
     }
 
     let directory = Path::new(&args[1]);
     let model_path = Path::new(&args[2]);
+    let show_name = &args[3];
 
     // Check if directory exists
     if !directory.exists() {
@@ -39,7 +40,7 @@ fn main() {
     }
 
     // Run the investigation
-    if let Err(e) = investigate_case(directory, model_path) {
+    if let Err(e) = investigate_case(directory, model_path, show_name) {
         eprintln!("\nError during investigation: {}", e);
         process::exit(1);
     }
