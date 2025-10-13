@@ -12,6 +12,9 @@ mod metadata_retrieval;
 mod speech_to_text;
 mod temp;
 
+// Public submodule for model downloading
+pub mod model_downloader;
+
 use ai_matcher::{ClaudeCodeMatcher, EpisodeMatcher, GeminiCliMatcher, NaivePromptGenerator};
 use audio_extraction::audio_from_video;
 use cache::CacheStorage;

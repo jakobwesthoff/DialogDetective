@@ -1,6 +1,7 @@
 use clap::{Parser, ValueEnum};
 use dialog_detective::{
-    MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case, plan_operations,
+    model_downloader, MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case,
+    plan_operations,
 };
 use std::path::PathBuf;
 use std::process;
@@ -19,11 +20,15 @@ struct Cli {
     /// Directory containing video files to process
     video_dir: PathBuf,
 
-    /// Path to Whisper model file (e.g., ggml-base.en.bin)
-    model_path: PathBuf,
-
     /// Name of the TV series (e.g., "Breaking Bad")
     show_name: String,
+
+    /// Override automatic model with custom path
+    ///
+    /// By default, the 'base' model is automatically downloaded and cached.
+    /// Use this flag to specify a different model file.
+    #[arg(long, value_name = "PATH")]
+    model_path: Option<PathBuf>,
 
     /// Filter to specific season(s) - can be repeated (RECOMMENDED)
     ///
@@ -186,21 +191,37 @@ fn main() {
         process::exit(1);
     }
 
-    if !cli.model_path.exists() {
-        eprintln!(
-            "❌ Error: Model file does not exist: {}",
-            cli.model_path.display()
-        );
-        process::exit(1);
-    }
+    // Resolve model path: either use custom path or auto-download
+    let model_path = if let Some(custom_path) = cli.model_path {
+        // Custom model path provided - validate it exists
+        if !custom_path.exists() {
+            eprintln!(
+                "❌ Error: Model file does not exist: {}",
+                custom_path.display()
+            );
+            process::exit(1);
+        }
 
-    if !cli.model_path.is_file() {
-        eprintln!(
-            "❌ Error: Model path is not a file: {}",
-            cli.model_path.display()
-        );
-        process::exit(1);
-    }
+        if !custom_path.is_file() {
+            eprintln!(
+                "❌ Error: Model path is not a file: {}",
+                custom_path.display()
+            );
+            process::exit(1);
+        }
+
+        custom_path
+    } else {
+        // No custom path - use auto-download for 'base' model
+        match model_downloader::ensure_model_available("base") {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("❌ Error: Failed to download Whisper model: {}", e);
+                eprintln!("💡 Tip: You can manually specify a model path with --model-path");
+                process::exit(1);
+            }
+        }
+    };
 
     // Validate mode-specific requirements
     if matches!(cli.mode, Mode::Copy) && cli.output_dir.is_none() {
@@ -218,7 +239,7 @@ fn main() {
     // Run the investigation with progress callback
     match investigate_case(
         &cli.video_dir,
-        &cli.model_path,
+        &model_path,
         &cli.show_name,
         season_filter,
         cli.matcher.into(),
