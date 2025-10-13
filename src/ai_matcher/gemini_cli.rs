@@ -89,8 +89,12 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
         }
 
         // Convert stdout to string
-        String::from_utf8(output.stdout).map_err(|e| {
-            EpisodeMatchingError::ParseError(format!("Invalid UTF-8 in gemini response: {}", e))
+        String::from_utf8(output.stdout.clone()).map_err(|e| {
+            let lossy_response = String::from_utf8_lossy(&output.stdout);
+            EpisodeMatchingError::ParseError {
+                reason: format!("Invalid UTF-8 in gemini response: {}", e),
+                response: lossy_response.to_string(),
+            }
         })
     }
 
@@ -110,9 +114,10 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
             }
         }
 
-        Err(EpisodeMatchingError::ParseError(
-            "No JSON code block found in response".to_string(),
-        ))
+        Err(EpisodeMatchingError::ParseError {
+            reason: "No JSON code block found in response".to_string(),
+            response: response.to_string(),
+        })
     }
 
     /// Finds an episode in the series by season and episode number
@@ -120,6 +125,7 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
         series: &TVSeries,
         season_num: usize,
         episode_num: usize,
+        response: &str,
     ) -> Result<Episode, EpisodeMatchingError> {
         for season in &series.seasons {
             if season.season_number == season_num {
@@ -131,7 +137,9 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
             }
         }
 
-        Err(EpisodeMatchingError::NoMatchFound)
+        Err(EpisodeMatchingError::NoMatchFound {
+            response: response.to_string(),
+        })
     }
 }
 
@@ -152,10 +160,18 @@ impl<G: SinglePromptGenerator> EpisodeMatcher for GeminiCliMatcher<G> {
 
         // Parse JSON
         let gemini_response: GeminiResponse = serde_json::from_str(&json_str).map_err(|e| {
-            EpisodeMatchingError::ParseError(format!("Failed to parse JSON response: {}", e))
+            EpisodeMatchingError::ParseError {
+                reason: format!("Failed to parse JSON response: {}", e),
+                response: response.clone(),
+            }
         })?;
 
         // Find matching episode
-        Self::find_episode(series, gemini_response.season, gemini_response.episode)
+        Self::find_episode(
+            series,
+            gemini_response.season,
+            gemini_response.episode,
+            &response,
+        )
     }
 }

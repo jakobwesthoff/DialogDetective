@@ -22,12 +22,12 @@ pub enum EpisodeMatchingError {
     ServiceError(String),
 
     /// Failed to parse the AI's response
-    #[error("Failed to parse AI response: {0}")]
-    ParseError(String),
+    #[error("Failed to parse AI response: {reason}\n\nFull LLM response:\n{response}")]
+    ParseError { reason: String, response: String },
 
     /// No matching episode could be determined
-    #[error("No matching episode found")]
-    NoMatchFound,
+    #[error("No matching episode found in the series\n\nFull LLM response:\n{response}")]
+    NoMatchFound { response: String },
 }
 
 /// Trait for matching transcripts to episodes using AI/LLM analysis
