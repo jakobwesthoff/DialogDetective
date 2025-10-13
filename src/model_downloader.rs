@@ -4,6 +4,7 @@
 //! from Hugging Face. Models are stored in the system's standard cache directory
 //! and reused across runs.
 
+use humansize::{format_size, BINARY};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -63,7 +64,6 @@ pub const SUPPORTED_MODELS: &[&str] = &[
     "base-q8_0",
     "small",
     "small.en",
-    "small.en-tdrz",
     "small-q5_1",
     "small.en-q5_1",
     "small-q8_0",
@@ -294,6 +294,29 @@ fn get_model_cache_dir() -> Result<PathBuf, ModelDownloadError> {
     Ok(cache_dir)
 }
 
+/// Information about a cached Whisper model
+#[derive(Debug, Clone)]
+pub struct CachedModelInfo {
+    /// Model name (e.g., "base", "small-q8_0")
+    pub model_name: String,
+
+    /// Full path to the cached model file
+    pub path: PathBuf,
+
+    /// File name (e.g., "ggml-base.bin")
+    pub file_name: String,
+
+    /// File size in bytes
+    pub size_bytes: u64,
+}
+
+impl CachedModelInfo {
+    /// Returns a human-readable size string (e.g., "142 MiB", "1.5 GiB")
+    pub fn size_human_readable(&self) -> String {
+        format_size(self.size_bytes, BINARY)
+    }
+}
+
 /// Returns the list of all supported model names
 ///
 /// This is a convenience function that returns the list of model names
@@ -302,11 +325,18 @@ pub fn supported_models() -> &'static [&'static str] {
     SUPPORTED_MODELS
 }
 
-/// Lists all cached model files
+/// Returns the cache directory path for models
 ///
-/// Returns a list of model names (without the "ggml-" prefix and ".bin" extension)
-/// that are currently cached.
-pub fn list_cached_models() -> Result<Vec<String>, ModelDownloadError> {
+/// This is the directory where downloaded models are stored.
+pub fn get_cache_dir() -> Result<PathBuf, ModelDownloadError> {
+    get_model_cache_dir()
+}
+
+/// Lists all cached model files with detailed information
+///
+/// Returns a vector of `CachedModelInfo` containing details about each
+/// cached model including name, path, file size, etc.
+pub fn list_cached_models() -> Result<Vec<CachedModelInfo>, ModelDownloadError> {
     let cache_dir = get_model_cache_dir()?;
 
     let mut models = Vec::new();
@@ -323,14 +353,28 @@ pub fn list_cached_models() -> Result<Vec<String>, ModelDownloadError> {
                             .and_then(|s| s.strip_suffix(".bin"))
                             .unwrap_or("")
                             .to_string();
+
                         if !model_name.is_empty() {
-                            models.push(model_name);
+                            // Get file size
+                            let size_bytes = fs::metadata(&path)
+                                .map(|m| m.len())
+                                .unwrap_or(0);
+
+                            models.push(CachedModelInfo {
+                                model_name,
+                                path: path.clone(),
+                                file_name: file_name.to_string(),
+                                size_bytes,
+                            });
                         }
                     }
                 }
             }
         }
     }
+
+    // Sort by model name for consistent output
+    models.sort_by(|a, b| a.model_name.cmp(&b.model_name));
 
     Ok(models)
 }

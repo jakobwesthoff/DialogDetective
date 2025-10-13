@@ -18,16 +18,31 @@ use std::process;
 )]
 struct Cli {
     /// Directory containing video files to process
-    video_dir: PathBuf,
+    #[arg(required_unless_present = "list_models")]
+    video_dir: Option<PathBuf>,
 
     /// Name of the TV series (e.g., "Breaking Bad")
-    show_name: String,
+    #[arg(required_unless_present = "list_models")]
+    show_name: Option<String>,
 
-    /// Override automatic model with custom path
+    /// List all available Whisper models and exit
+    #[arg(long)]
+    list_models: bool,
+
+    /// Select Whisper model by name (auto-downloads if needed)
     ///
-    /// By default, the 'base' model is automatically downloaded and cached.
-    /// Use this flag to specify a different model file.
-    #[arg(long, value_name = "PATH")]
+    /// By default, the 'base' model is used. Use this flag to select a different
+    /// model from the supported list. Use --list-models to see all available models.
+    ///
+    /// Examples: tiny, base, small, medium, large-v3-turbo, base-q8_0
+    #[arg(long, value_name = "NAME", conflicts_with = "model_path")]
+    model: Option<String>,
+
+    /// Override with custom model file path (advanced)
+    ///
+    /// Use this flag to specify a custom model file path instead of using
+    /// the auto-download feature. This is for advanced users with custom models.
+    #[arg(long, value_name = "PATH", conflicts_with = "model")]
     model_path: Option<PathBuf>,
 
     /// Filter to specific season(s) - can be repeated (RECOMMENDED)
@@ -171,27 +186,101 @@ fn handle_progress_event(event: ProgressEvent) {
     }
 }
 
+/// Displays all available Whisper models with download status and exits
+fn display_model_list_and_exit() {
+    use std::collections::HashMap;
+
+    println!("🔍 Available Whisper Models");
+    println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    println!();
+
+    // Get cache directory
+    let cache_dir = match model_downloader::get_cache_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("❌ Error: Failed to access cache directory: {}", e);
+            process::exit(1);
+        }
+    };
+
+    println!("📁 Cache directory: {}", cache_dir.display());
+    println!();
+
+    // Get list of cached models
+    let cached_models = match model_downloader::list_cached_models() {
+        Ok(models) => models,
+        Err(e) => {
+            eprintln!("⚠️  Warning: Failed to read cached models: {}", e);
+            Vec::new()
+        }
+    };
+
+    // Create a map for quick lookup
+    let cached_map: HashMap<String, &model_downloader::CachedModelInfo> =
+        cached_models.iter().map(|m| (m.model_name.clone(), m)).collect();
+
+    // Display all models
+    let all_models = model_downloader::supported_models();
+
+    println!("Available Models:");
+    for model in all_models.iter() {
+        if let Some(info) = cached_map.get(*model) {
+            println!("  ✓ {:<30} ({})", model, info.size_human_readable());
+        } else {
+            println!("  ○ {:<30} (not downloaded)", model);
+        }
+    }
+
+    println!();
+    println!("💡 Tips:");
+    println!("  - Use --model <NAME> to select a model (e.g., --model tiny)");
+    println!("  - Models are downloaded automatically on first use");
+    println!("  - Smaller models are faster but less accurate");
+    println!("  - Quantized models have -q suffix (smaller size, slightly lower quality)");
+    println!();
+
+    if !cached_models.is_empty() {
+        let total_size: u64 = cached_models.iter().map(|m| m.size_bytes).sum();
+        println!(
+            "📊 Total cached: {} models, {} used",
+            cached_models.len(),
+            humansize::format_size(total_size, humansize::BINARY)
+        );
+    }
+
+    process::exit(0);
+}
+
 fn main() {
     let cli = Cli::parse();
 
+    // Handle --list-models flag
+    if cli.list_models {
+        display_model_list_and_exit();
+    }
+
+    // Unwrap required arguments (safe because of required_unless_present)
+    let video_dir = cli.video_dir.expect("video_dir should be present");
+    let show_name = cli.show_name.expect("show_name should be present");
+
     // Validate arguments
-    if !cli.video_dir.exists() {
+    if !video_dir.exists() {
         eprintln!(
             "❌ Error: Directory does not exist: {}",
-            cli.video_dir.display()
+            video_dir.display()
         );
         process::exit(1);
     }
 
-    if !cli.video_dir.is_dir() {
+    if !video_dir.is_dir() {
         eprintln!(
             "❌ Error: Path is not a directory: {}",
-            cli.video_dir.display()
+            video_dir.display()
         );
         process::exit(1);
     }
 
-    // Resolve model path: either use custom path or auto-download
+    // Resolve model path: custom path, selected model, or default 'base'
     let model_path = if let Some(custom_path) = cli.model_path {
         // Custom model path provided - validate it exists
         if !custom_path.exists() {
@@ -212,11 +301,39 @@ fn main() {
 
         custom_path
     } else {
-        // No custom path - use auto-download for 'base' model
-        match model_downloader::ensure_model_available("base") {
+        // Determine which model to use
+        let model_name = cli.model.as_deref().unwrap_or("base");
+
+        // Validate model name against supported list
+        let supported = model_downloader::supported_models();
+        if !supported.contains(&model_name) {
+            eprintln!("❌ Error: Unsupported model '{}'", model_name);
+            eprintln!();
+            eprintln!("Supported models:");
+            for (i, model) in supported.iter().enumerate() {
+                eprint!("  {}", model);
+                if (i + 1) % 4 == 0 {
+                    eprintln!();
+                } else {
+                    eprint!("  ");
+                }
+            }
+            if supported.len() % 4 != 0 {
+                eprintln!();
+            }
+            eprintln!();
+            eprintln!("💡 Tip: Use --list-models to see all available models with details");
+            process::exit(1);
+        }
+
+        // Download model if needed
+        match model_downloader::ensure_model_available(model_name) {
             Ok(path) => path,
             Err(e) => {
-                eprintln!("❌ Error: Failed to download Whisper model: {}", e);
+                eprintln!(
+                    "❌ Error: Failed to download Whisper model '{}': {}",
+                    model_name, e
+                );
                 eprintln!("💡 Tip: You can manually specify a model path with --model-path");
                 process::exit(1);
             }
@@ -238,9 +355,9 @@ fn main() {
 
     // Run the investigation with progress callback
     match investigate_case(
-        &cli.video_dir,
+        &video_dir,
         &model_path,
-        &cli.show_name,
+        &show_name,
         season_filter,
         cli.matcher.into(),
         handle_progress_event,
@@ -254,7 +371,7 @@ fn main() {
             // Plan file operations
             let output_dir = cli.output_dir.as_deref();
             let operations =
-                match plan_operations(&matches, &cli.show_name, &cli.format, output_dir) {
+                match plan_operations(&matches, &show_name, &cli.format, output_dir) {
                     Ok(ops) => ops,
                     Err(e) => {
                         eprintln!("\n❌ Failed to plan operations: {}", e);
