@@ -3,7 +3,7 @@
 Automatically identify and rename unknown tv series video files by letting AI listen to their dialogue.
 
 <center>
-[![asciicast](https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p.svg)](https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p)
+  <a href="https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p" target="_blank"><img src="https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p.svg" /></a>
 </center>
 
 ## Why I Built This
