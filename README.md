@@ -2,6 +2,10 @@
 
 Automatically identify and rename unknown tv series video files by letting AI listen to their dialogue.
 
+<center>
+[![asciicast](https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p.svg)](https://asciinema.org/a/41c1y7KXjdaZBwPMT09Nkyt7p)
+</center>
+
 ## Why I Built This
 
 I sometimes rip TV series from my Blu-ray/DVD collection to have them available for easier binge watching. Unfortunately, the structure of those disc releases is often completely non-linear - you get files like `TITLE_01.mkv`, `TITLE_03.mkv`, `TITLE_07.mkv` with no clear indication which episode is which.
