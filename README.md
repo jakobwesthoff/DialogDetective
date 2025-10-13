@@ -1,6 +1,6 @@
 # DialogDetective
 
-Automatically identify and rename unknown video files by listening to their dialogue.
+Automatically identify and rename unknown tv series video files by letting AI listen to their dialogue.
 
 ## Why I Built This
 
