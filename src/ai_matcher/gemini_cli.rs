@@ -25,12 +25,19 @@ struct GeminiResponse {
 pub(crate) struct GeminiCliMatcher<G: SinglePromptGenerator> {
     /// The prompt generator to use for creating prompts
     generator: G,
+    /// Optional model to use (e.g., "gemini-2.5-flash")
+    model: Option<String>,
 }
 
 impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
-    /// Creates a new GeminiCliMatcher with the given prompt generator
-    pub fn new(generator: G) -> Self {
-        Self { generator }
+    /// Creates a new GeminiCliMatcher with the given prompt generator and optional model
+    ///
+    /// # Arguments
+    ///
+    /// * `generator` - The prompt generator to use
+    /// * `model` - Optional model name (e.g., "gemini-2.5-flash")
+    pub fn new(generator: G, model: Option<String>) -> Self {
+        Self { generator, model }
     }
 
     /// Checks if the gemini CLI is installed and available
@@ -45,7 +52,7 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
     }
 
     /// Sends a prompt to Gemini CLI and returns the response
-    fn call_gemini(prompt: &str) -> Result<String, EpisodeMatchingError> {
+    fn call_gemini(prompt: &str, model: &Option<String>) -> Result<String, EpisodeMatchingError> {
         // Check if gemini is installed
         if !Self::is_gemini_installed() {
             return Err(EpisodeMatchingError::ServiceError(
@@ -53,15 +60,19 @@ impl<G: SinglePromptGenerator> GeminiCliMatcher<G> {
             ));
         }
 
-        // Spawn gemini process with stdin
-        let mut child = Command::new("gemini")
-            .stdin(Stdio::piped())
+        // Build command with optional model parameter
+        let mut cmd = Command::new("gemini");
+        if let Some(model_name) = model {
+            cmd.arg("--model").arg(model_name);
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                EpisodeMatchingError::ServiceError(format!("Failed to spawn gemini CLI: {}", e))
-            })?;
+            .stderr(Stdio::piped());
+
+        // Spawn gemini process with stdin
+        let mut child = cmd.spawn().map_err(|e| {
+            EpisodeMatchingError::ServiceError(format!("Failed to spawn gemini CLI: {}", e))
+        })?;
 
         // Write prompt to stdin
         if let Some(mut stdin) = child.stdin.take() {
@@ -153,18 +164,17 @@ impl<G: SinglePromptGenerator> EpisodeMatcher for GeminiCliMatcher<G> {
         let prompt = self.generator.generate_single_prompt(transcript, series);
 
         // Call Gemini CLI
-        let response = Self::call_gemini(&prompt)?;
+        let response = Self::call_gemini(&prompt, &self.model)?;
 
         // Extract JSON block
         let json_str = Self::extract_json_block(&response)?;
 
         // Parse JSON
-        let gemini_response: GeminiResponse = serde_json::from_str(&json_str).map_err(|e| {
-            EpisodeMatchingError::ParseError {
+        let gemini_response: GeminiResponse =
+            serde_json::from_str(&json_str).map_err(|e| EpisodeMatchingError::ParseError {
                 reason: format!("Failed to parse JSON response: {}", e),
                 response: response.clone(),
-            }
-        })?;
+            })?;
 
         // Find matching episode
         Self::find_episode(

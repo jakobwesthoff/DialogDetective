@@ -162,12 +162,11 @@ impl<G: SinglePromptGenerator> EpisodeMatcher for ClaudeCodeMatcher<G> {
         let json_str = Self::extract_json_block(&response)?;
 
         // Parse JSON
-        let claude_response: ClaudeResponse = serde_json::from_str(&json_str).map_err(|e| {
-            EpisodeMatchingError::ParseError {
+        let claude_response: ClaudeResponse =
+            serde_json::from_str(&json_str).map_err(|e| EpisodeMatchingError::ParseError {
                 reason: format!("Failed to parse JSON response: {}", e),
                 response: response.clone(),
-            }
-        })?;
+            })?;
 
         // Find matching episode
         Self::find_episode(

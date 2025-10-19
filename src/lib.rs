@@ -66,6 +66,7 @@ fn compute_matching_cache_key(
     // Format matcher type
     let matcher_str = match matcher_type {
         MatcherType::Gemini => "gemini",
+        MatcherType::GeminiFlash => "gemini-flash",
         MatcherType::Claude => "claude",
     };
 
@@ -99,6 +100,8 @@ use thiserror::Error;
 pub enum MatcherType {
     /// Use Gemini CLI for episode matching
     Gemini,
+    /// Use Gemini CLI with gemini-2.5-flash model
+    GeminiFlash,
     /// Use Claude Code CLI for episode matching
     Claude,
 }
@@ -362,7 +365,11 @@ where
     // Initialize the matcher based on the selected type
     let prompt_generator = NaivePromptGenerator::default();
     let matcher: Box<dyn EpisodeMatcher> = match matcher_type {
-        MatcherType::Gemini => Box::new(GeminiCliMatcher::new(prompt_generator)),
+        MatcherType::Gemini => Box::new(GeminiCliMatcher::new(prompt_generator, None)),
+        MatcherType::GeminiFlash => Box::new(GeminiCliMatcher::new(
+            prompt_generator,
+            Some("gemini-2.5-flash".to_string()),
+        )),
         MatcherType::Claude => Box::new(ClaudeCodeMatcher::new(prompt_generator)),
     };
 

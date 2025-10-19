@@ -4,7 +4,7 @@
 //! from Hugging Face. Models are stored in the system's standard cache directory
 //! and reused across runs.
 
-use humansize::{format_size, BINARY};
+use humansize::{BINARY, format_size};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -26,10 +26,7 @@ pub enum ModelDownloadError {
 
     /// Failed to download model from Hugging Face
     #[error("Failed to download model from {url}: {source}")]
-    DownloadFailed {
-        url: String,
-        source: reqwest::Error,
-    },
+    DownloadFailed { url: String, source: reqwest::Error },
 
     /// Failed to write model file to cache
     #[error("Failed to write model file {path}: {source}")]
@@ -170,7 +167,10 @@ fn download_model(model_name: &str, target_path: &Path) -> Result<(), ModelDownl
     let url = format!("{}/ggml-{}.bin", MODEL_BASE_URL, model_name);
 
     println!("🔍 Preparing evidence kit...");
-    println!("📥 Downloading Whisper model '{}' from Hugging Face", model_name);
+    println!(
+        "📥 Downloading Whisper model '{}' from Hugging Face",
+        model_name
+    );
     println!("   This may take a few minutes depending on your connection...");
     print!("   Progress: ");
     io::stdout().flush().ok();
@@ -218,12 +218,13 @@ fn download_model(model_name: &str, target_path: &Path) -> Result<(), ModelDownl
     let mut last_progress_percent = 0;
 
     loop {
-        let bytes_read = response.read(&mut buffer).map_err(|e| {
-            ModelDownloadError::WriteFailed {
-                path: temp_path.clone(),
-                source: e,
-            }
-        })?;
+        let bytes_read =
+            response
+                .read(&mut buffer)
+                .map_err(|e| ModelDownloadError::WriteFailed {
+                    path: temp_path.clone(),
+                    source: e,
+                })?;
 
         if bytes_read == 0 {
             break; // EOF
@@ -356,9 +357,7 @@ pub fn list_cached_models() -> Result<Vec<CachedModelInfo>, ModelDownloadError> 
 
                         if !model_name.is_empty() {
                             // Get file size
-                            let size_bytes = fs::metadata(&path)
-                                .map(|m| m.len())
-                                .unwrap_or(0);
+                            let size_bytes = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
 
                             models.push(CachedModelInfo {
                                 model_name,

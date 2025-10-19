@@ -1,6 +1,6 @@
 use clap::{Parser, ValueEnum};
 use dialog_detective::{
-    model_downloader, MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case,
+    MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case, model_downloader,
     plan_operations,
 };
 use std::path::PathBuf;
@@ -84,6 +84,8 @@ struct Cli {
 enum Matcher {
     /// Gemini CLI (default, requires 'gemini' in PATH)
     Gemini,
+    /// Gemini CLI with gemini-2.5-flash model (requires 'gemini' in PATH)
+    GeminiFlash,
     /// Claude Code CLI (requires 'claude' in PATH)
     Claude,
 }
@@ -92,6 +94,7 @@ impl From<Matcher> for MatcherType {
     fn from(m: Matcher) -> Self {
         match m {
             Matcher::Gemini => MatcherType::Gemini,
+            Matcher::GeminiFlash => MatcherType::GeminiFlash,
             Matcher::Claude => MatcherType::Claude,
         }
     }
@@ -216,8 +219,10 @@ fn display_model_list_and_exit() {
     };
 
     // Create a map for quick lookup
-    let cached_map: HashMap<String, &model_downloader::CachedModelInfo> =
-        cached_models.iter().map(|m| (m.model_name.clone(), m)).collect();
+    let cached_map: HashMap<String, &model_downloader::CachedModelInfo> = cached_models
+        .iter()
+        .map(|m| (m.model_name.clone(), m))
+        .collect();
 
     // Display all models
     let all_models = model_downloader::supported_models();
@@ -273,10 +278,7 @@ fn main() {
     }
 
     if !video_dir.is_dir() {
-        eprintln!(
-            "❌ Error: Path is not a directory: {}",
-            video_dir.display()
-        );
+        eprintln!("❌ Error: Path is not a directory: {}", video_dir.display());
         process::exit(1);
     }
 
@@ -370,14 +372,13 @@ fn main() {
 
             // Plan file operations
             let output_dir = cli.output_dir.as_deref();
-            let operations =
-                match plan_operations(&matches, &show_name, &cli.format, output_dir) {
-                    Ok(ops) => ops,
-                    Err(e) => {
-                        eprintln!("\n❌ Failed to plan operations: {}", e);
-                        process::exit(1);
-                    }
-                };
+            let operations = match plan_operations(&matches, &show_name, &cli.format, output_dir) {
+                Ok(ops) => ops,
+                Err(e) => {
+                    eprintln!("\n❌ Failed to plan operations: {}", e);
+                    process::exit(1);
+                }
+            };
 
             // Display results based on mode
             match cli.mode {
