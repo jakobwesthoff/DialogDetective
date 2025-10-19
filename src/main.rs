@@ -53,7 +53,7 @@ struct Cli {
     seasons: Vec<usize>,
 
     /// AI backend to use for episode matching
-    #[arg(short = 'm', long, value_enum, default_value_t = Matcher::Gemini)]
+    #[arg(short = 'm', long, value_enum, default_value_t = Matcher::GeminiFlash)]
     matcher: Matcher,
 
     /// Operation mode: what to do after matching
@@ -82,9 +82,9 @@ struct Cli {
 /// AI backend selection
 #[derive(Clone, Copy, ValueEnum)]
 enum Matcher {
-    /// Gemini CLI (default, requires 'gemini' in PATH)
+    /// Gemini CLI (requires 'gemini' in PATH)
     Gemini,
-    /// Gemini CLI with gemini-2.5-flash model (requires 'gemini' in PATH)
+    /// Gemini CLI with gemini-2.5-flash model (default, requires 'gemini' in PATH)
     GeminiFlash,
     /// Claude Code CLI (requires 'claude' in PATH)
     Claude,

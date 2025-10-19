@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable model parameter support for Gemini CLI matcher
 
 ### Changed
+- Default matcher changed from `gemini` to `gemini-flash` for faster, more cost-effective episode matching
 - `GeminiCliMatcher` now accepts an optional model parameter
 - Cache keys now differentiate between different Gemini models
 
