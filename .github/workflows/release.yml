@@ -27,8 +27,11 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             suffix: metal
-            # Apple Silicon needs proper CPU flags for ARM intrinsics (i8mm)
-            cflags: "-mcpu=apple-m1"
+            # Disable GGML_NATIVE to prevent i8mm detection on M2/M3 runners
+            # See: https://github.com/ggml-org/whisper.cpp/issues/3427
+            # whisper-rs-sys passes CMAKE_* env vars to cmake
+            cmake_c_flags: "-march=armv8.5-a"
+            cmake_cxx_flags: "-march=armv8.5-a"
           - target: x86_64-apple-darwin
             os: macos-latest
             suffix: metal
@@ -51,8 +54,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         env:
-          CFLAGS: ${{ matrix.cflags }}
-          CXXFLAGS: ${{ matrix.cflags }}
+          # whisper-rs-sys passes CMAKE_* env vars to cmake
+          CMAKE_C_FLAGS: ${{ matrix.cmake_c_flags }}
+          CMAKE_CXX_FLAGS: ${{ matrix.cmake_cxx_flags }}
         with:
           bin: dialog_detective
           target: ${{ matrix.target }}

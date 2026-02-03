@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Cross-compilation for Apple Silicon (aarch64-apple-darwin) by setting proper CPU flags for ARM i8mm intrinsics
+- Cross-compilation for Apple Silicon (aarch64-apple-darwin) on GitHub Actions by targeting ARMv8.5-a to avoid i8mm intrinsics unsupported on M1
 
 ## 1.1.0 - 2025-10-19
 
