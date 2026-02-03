@@ -41,8 +41,11 @@ jobs:
             os: ubuntu-latest
             suffix: cpu
           - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
+            os: ubuntu-24.04-arm
             suffix: cpu
+            # Use native ARM64 runner instead of cross-compilation
+            # cross-rs GCC 9.2 lacks vld1q_s8_x4 NEON intrinsics needed by ggml
+            # See: https://github.com/ggerganov/llama.cpp/issues/4827
 
           # Windows targets (CPU-only)
           - target: x86_64-pc-windows-msvc
