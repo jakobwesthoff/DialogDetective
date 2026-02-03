@@ -33,11 +33,19 @@ thiserror = "2.0.17"
 ulid = "1.2.1"
 
 # Whisper speech-to-text with GPU acceleration
-# Currently using 'metal' feature for macOS GPU support (Apple Metal framework)
-# For cross-platform builds, consider using target-specific features:
-#   - macOS: features = ["metal"]
-#   - Linux/Windows with NVIDIA: features = ["cuda"]
-#   - Linux/Windows (generic): features = ["vulkan"]
-#   - AMD GPUs: features = ["hipblas"]
+# GPU features are target-specific:
+#   - macOS: Metal (Apple GPU framework) - enabled by default
+#   - Linux/Windows: CPU-only by default, enable GPU with --features cuda/vulkan/hipblas
 # See: https://codeberg.org/tazz4843/whisper-rs#features
+
+[features]
+default = []
+cuda = ["whisper-rs/cuda"]
+vulkan = ["whisper-rs/vulkan"]
+hipblas = ["whisper-rs/hipblas"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
 whisper-rs = { version = "0.15.1", features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs = { version = "0.15.1" }

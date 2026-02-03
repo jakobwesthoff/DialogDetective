@@ -24,6 +24,39 @@ DialogDetective extracts audio from your video files, transcribes the dialogue u
 cargo install --path .
 ```
 
+### Pre-built Binaries
+
+Pre-built binaries are available on the [GitHub Releases](https://github.com/jakobwesthoff/DialogDetective/releases) page:
+
+- **macOS** (Apple Silicon & Intel): Built with **Metal** GPU acceleration
+- **Linux** (x86_64 & aarch64): Built with **CPU-only** Whisper
+- **Windows** (x86_64): Built with **CPU-only** Whisper
+
+### GPU Acceleration
+
+DialogDetective uses [whisper-rs](https://github.com/tazz4843/whisper-rs) for speech-to-text, which supports various GPU backends for faster transcription.
+
+**Default builds:**
+- macOS: Metal (Apple GPU) - enabled automatically
+- Linux/Windows: CPU-only
+
+**Building with GPU support (Linux/Windows):**
+
+If you have the required GPU frameworks installed, you can build with GPU acceleration:
+
+```bash
+# NVIDIA CUDA (requires CUDA toolkit)
+cargo build --release --features cuda
+
+# Vulkan (requires Vulkan SDK)
+cargo build --release --features vulkan
+
+# AMD ROCm/hipBLAS (requires ROCm)
+cargo build --release --features hipblas
+```
+
+See the [whisper-rs documentation](https://github.com/tazz4843/whisper-rs#features) for detailed requirements for each GPU backend.
+
 ### Prerequisites
 
 - **Rust toolchain** (install from [rustup.rs](https://rustup.rs))

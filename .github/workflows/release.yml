@@ -1,0 +1,55 @@
+name: Release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          # macOS targets (with Metal GPU acceleration)
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            suffix: metal
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            suffix: metal
+
+          # Linux targets (statically linked, CPU-only)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            suffix: cpu
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            suffix: cpu
+
+          # Windows targets (CPU-only)
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            suffix: cpu
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: dialog_detective
+          target: ${{ matrix.target }}
+          archive: dialog_detective-$tag-$target-${{ matrix.suffix }}
+          token: ${{ secrets.GITHUB_TOKEN }}

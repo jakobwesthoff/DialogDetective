@@ -179,6 +179,10 @@ Use --mode rename or --mode copy to apply these changes</code></pre>
                   <p style="margin-top: var(--space-md); color: var(--color-text-muted); font-size: 0.9rem;">
                     Pre-built binaries for macOS, Linux, and Windows
                   </p>
+                  <p style="margin-top: var(--space-sm); color: var(--color-text-muted); font-size: 0.85rem;">
+                    <strong>macOS:</strong> Metal GPU acceleration &bull;
+                    <strong>Linux/Windows:</strong> CPU-only (<a href="#gpu-acceleration" style="color: var(--color-primary);">build from source</a> for GPU support)
+                  </p>
                 </div>
               </div>
               <div class="tab-panel" data-tab="source">
@@ -518,6 +522,61 @@ dialog_detective --list-models
 # Use a specific model
 dialog_detective ./videos "Show" -s 1 --model large-v3-turbo</code></pre>
           </div>
+
+          <h3 id="gpu-acceleration">GPU Acceleration</h3>
+          <p>
+            DialogDetective uses <a href="https://github.com/tazz4843/whisper-rs">whisper-rs</a> for speech-to-text,
+            which supports various GPU backends for faster transcription.
+          </p>
+
+          <h4>Pre-built Binaries</h4>
+          <div class="docs-table">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th>GPU Backend</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>macOS</strong></td>
+                  <td>Metal</td>
+                  <td>Apple GPU acceleration enabled by default</td>
+                </tr>
+                <tr>
+                  <td><strong>Linux</strong></td>
+                  <td>CPU-only</td>
+                  <td>Build from source for GPU support</td>
+                </tr>
+                <tr>
+                  <td><strong>Windows</strong></td>
+                  <td>CPU-only</td>
+                  <td>Build from source for GPU support</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4>Building with GPU Support</h4>
+          <p>
+            If you have the required GPU frameworks installed on Linux or Windows, you can build with GPU acceleration:
+          </p>
+          <div class="code-block">
+            <pre><code class="language-bash"># NVIDIA CUDA (requires CUDA toolkit)
+cargo build --release --features cuda
+
+# Vulkan (requires Vulkan SDK)
+cargo build --release --features vulkan
+
+# AMD ROCm/hipBLAS (requires ROCm)
+cargo build --release --features hipblas</code></pre>
+          </div>
+          <p style="color: var(--color-text-muted); font-size: 0.9rem;">
+            See the <a href="https://github.com/tazz4843/whisper-rs#features" style="color: var(--color-primary);">whisper-rs documentation</a>
+            for detailed requirements for each GPU backend.
+          </p>
 
           <h3>AI Backend</h3>
           <p>
