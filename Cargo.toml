@@ -5,6 +5,7 @@ edition = "2024"
 authors = ["Jakob Westhoff"]
 description = "Automatically identify and rename unknown tv series video files by letting AI listen to their dialogue."
 license = "MIT"
+repository = "https://github.com/jakobwesthoff/DialogDetective"
 homepage = "https://dialogdetective.westhoffswelt.de"
 
 # This crate provides both a library and a binary
