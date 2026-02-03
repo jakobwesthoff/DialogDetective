@@ -27,6 +27,8 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
             suffix: metal
+            # Apple Silicon needs proper CPU flags for ARM intrinsics (i8mm)
+            cflags: "-mcpu=apple-m1"
           - target: x86_64-apple-darwin
             os: macos-latest
             suffix: metal
@@ -48,6 +50,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
+        env:
+          CFLAGS: ${{ matrix.cflags }}
+          CXXFLAGS: ${{ matrix.cflags }}
         with:
           bin: dialog_detective
           target: ${{ matrix.target }}

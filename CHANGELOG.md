@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Use native rusttls instead of openssl tls layer to allow for static linking with musl libc
+- Use native rustls instead of openssl TLS layer to allow for static linking with musl libc
+
+### Fixed
+
+- Cross-compilation for Apple Silicon (aarch64-apple-darwin) by setting proper CPU flags for ARM i8mm intrinsics
 
 ## 1.1.0 - 2025-10-19
 
