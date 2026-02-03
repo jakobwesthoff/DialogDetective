@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Cross-compilation for Apple Silicon (aarch64-apple-darwin) on GitHub Actions by targeting ARMv8.5-a to avoid i8mm intrinsics unsupported on M1
-- Build for ARM64 Linux (aarch64-unknown-linux-musl) by using native ARM64 runner instead of cross-compilation with outdated GCC
+- Build for ARM64 Linux (aarch64-unknown-linux-musl) by using cargo-zigbuild instead of cross-rs with outdated GCC
 
 ## 1.1.0 - 2025-10-19
 

@@ -41,11 +41,13 @@ jobs:
             os: ubuntu-latest
             suffix: cpu
           - target: aarch64-unknown-linux-musl
-            os: ubuntu-24.04-arm
+            os: ubuntu-latest
             suffix: cpu
-            # Use native ARM64 runner instead of cross-compilation
+            # Use cargo-zigbuild instead of cross-rs
             # cross-rs GCC 9.2 lacks vld1q_s8_x4 NEON intrinsics needed by ggml
+            # Zig uses LLVM which has proper NEON support
             # See: https://github.com/ggerganov/llama.cpp/issues/4827
+            build_tool: cargo-zigbuild
 
           # Windows targets (CPU-only)
           - target: x86_64-pc-windows-msvc
@@ -64,4 +66,5 @@ jobs:
           bin: dialog_detective
           target: ${{ matrix.target }}
           archive: dialog_detective-$tag-$target-${{ matrix.suffix }}
+          build-tool: ${{ matrix.build_tool }}
           token: ${{ secrets.GITHUB_TOKEN }}
