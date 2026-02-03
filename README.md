@@ -105,6 +105,55 @@ DialogDetective currently uses CLI tools for LLM access ([Gemini CLI](https://ai
 
 The interface is abstracted enough to easily add direct API access via API keys (OpenAI, Anthropic, etc.) if there's demand for it. If you need direct API support, feel free to reach out or submit a PR - contributions are highly welcome!
 
+## Cache & Storage
+
+DialogDetective caches various data to avoid redundant processing and speed up repeated runs.
+
+### Cache Location
+
+All cached data is stored in a platform-specific cache directory:
+
+- **macOS:** `~/Library/Caches/de.westhoffswelt.dialogdetective/`
+- **Linux:** `~/.cache/dialogdetective/`
+- **Windows:** `%LOCALAPPDATA%\dialogdetective\`
+
+### What Gets Cached
+
+| Data | Location | TTL | Why |
+|------|----------|-----|-----|
+| **Whisper Models** | `models/` | Permanent | Models are large (39MB - 2.9GB) and don't change. Downloaded once from HuggingFace on first use. |
+| **Series Metadata** | `metadata/` | 24 hours | Episode lists from TVMaze rarely change. Caching reduces API calls and speeds up repeated runs on the same show. |
+| **Transcripts** | `transcripts/` | 24 hours | Whisper transcription is CPU/GPU intensive. Caching by video file hash means re-running on the same files skips transcription entirely. |
+| **Match Results** | `matching/` | 24 hours | LLM matching costs tokens and time. Results are cached by a composite key (video hash + show + seasons + matcher), so identical queries return instantly. |
+
+The 24-hour TTL balances freshness with efficiency. If you need to force a refresh (e.g., after TVMaze updates episode data), simply delete the relevant cache subdirectory.
+
+### Temporary Files
+
+During processing, DialogDetective extracts audio to temporary WAV files in your system's temp directory (`/tmp`, `/var/folders/...`, or `%TEMP%`). These files are automatically cleaned up when processing completes or if the program is interrupted.
+
+### Managing Cache
+
+To clear all cached data:
+```bash
+# macOS
+rm -rf ~/Library/Caches/de.westhoffswelt.dialogdetective/
+
+# Linux
+rm -rf ~/.cache/dialogdetective/
+```
+
+To clear only models (to free disk space):
+```bash
+# macOS
+rm -rf ~/Library/Caches/de.westhoffswelt.dialogdetective/models/
+
+# Linux
+rm -rf ~/.cache/dialogdetective/models/
+```
+
+Use `dialog_detective --list-models` to see which models are currently cached and their sizes.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
