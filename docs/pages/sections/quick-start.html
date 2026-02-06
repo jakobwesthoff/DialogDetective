@@ -1,0 +1,99 @@
+<section id="quickstart" class="quickstart">
+  <div class="container">
+    <h2>Quick Start</h2>
+
+    <div class="tabs">
+      <div class="tab-buttons">
+        <button class="tab-button active" data-tab="cargo">Cargo (Recommended)</button>
+        <button class="tab-button" data-tab="binary">Binary Releases</button>
+        <button class="tab-button" data-tab="source">From Source</button>
+        <button class="tab-button" data-tab="prerequisites">Prerequisites</button>
+      </div>
+      <div class="tab-panels">
+        <div class="tab-panel active" data-tab="cargo">
+          <div class="code-block">
+            <pre><code class="language-bash">cargo install dialog_detective</code></pre>
+          </div>
+          <p class="text-muted text-sm px-lg py-sm">
+            Available on <a href="https://crates.io/crates/dialog_detective">crates.io</a>
+          </p>
+        </div>
+        <div class="tab-panel" data-tab="binary">
+          <div class="py-lg text-center">
+            <a href="https://github.com/jakobwesthoff/DialogDetective/releases" class="btn btn-primary">
+              <i data-icon="download"></i>
+              Download from GitHub Releases
+            </a>
+            <p class="text-muted text-sm mt-md">
+              Pre-built binaries for macOS, Linux, and Windows
+            </p>
+            <p class="text-muted text-sm mt-sm">
+              <strong>macOS:</strong> Metal GPU acceleration &bull;
+              <strong>Linux/Windows:</strong> CPU-only (<a href="#gpu-acceleration">build from source</a> for GPU support)
+            </p>
+          </div>
+        </div>
+        <div class="tab-panel" data-tab="source">
+          <div class="code-block">
+            <pre><code class="language-bash">git clone https://github.com/jakobwesthoff/DialogDetective.git
+cd DialogDetective
+cargo build --release</code></pre>
+          </div>
+        </div>
+        <div class="tab-panel" data-tab="prerequisites">
+          <div class="px-lg py-lg">
+            <h4>FFmpeg</h4>
+            <p class="text-muted text-sm mb-sm">
+              Required for audio extraction. <a href="https://ffmpeg.org/">ffmpeg.org</a>
+            </p>
+            <div class="code-block mb-lg">
+              <pre><code class="language-bash"># macOS
+brew install ffmpeg
+
+# Ubuntu/Debian
+sudo apt install ffmpeg
+
+# Windows: Download from https://ffmpeg.org/download.html</code></pre>
+            </div>
+
+            <h4>AI CLI (install one)</h4>
+            <p class="text-muted text-sm mb-sm">
+              <a href="https://github.com/google-gemini/gemini-cli">Gemini CLI</a> (recommended) or
+              <a href="https://claude.ai/code">Claude Code</a>
+            </p>
+
+            <h4 class="mt-lg">Whisper Models</h4>
+            <p class="text-muted text-sm">
+              Downloaded automatically on first run from <a href="https://huggingface.co/ggerganov/whisper.cpp">HuggingFace</a>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout-box">
+      <h4>Requirements</h4>
+      <p>DialogDetective requires external tools to function:</p>
+      <ul>
+        <li><strong>FFmpeg</strong> - for audio extraction from video files</li>
+        <li><strong>Gemini CLI</strong> or <strong>Claude Code</strong> - for AI-powered episode matching</li>
+      </ul>
+      <p class="text-muted text-sm">See the Prerequisites tab above for installation instructions.</p>
+    </div>
+
+    <h3>Basic Usage</h3>
+    <div class="code-block">
+      <pre><code class="language-bash"># Dry run - preview what would happen
+dialog_detective ./videos "Breaking Bad" -s 1
+
+# Rename files in place
+dialog_detective ./videos "Breaking Bad" --mode rename -s 1
+
+# Copy to organized directory
+dialog_detective ./videos "Breaking Bad" --mode copy -o ./organized -s 1
+
+# List available Whisper models
+dialog_detective --list-models</code></pre>
+    </div>
+  </div>
+</section>
