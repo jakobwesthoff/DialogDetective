@@ -3,22 +3,38 @@
 /// These structures mirror the JSON response format from the TVMaze API.
 use serde::Deserialize;
 
-/// The top-level response from the TVMaze singlesearch endpoint.
+// =========================================================
+// Search endpoint types (/search/shows)
+// =========================================================
+
+/// A single search result from the `/search/shows` endpoint.
+///
+/// The search endpoint returns an array of these, each containing a relevance
+/// score and the matching show's metadata.
 #[derive(Debug, Deserialize)]
-pub(super) struct TvMazeShow {
-    /// The name of the TV show
-    pub name: String,
-    /// Embedded resources (like episodes) when requested with ?embed=
-    #[serde(rename = "_embedded")]
-    pub embedded: Option<TvMazeEmbedded>,
+pub(super) struct TvMazeSearchResult {
+    /// Relevance score — present in the API response but not read directly;
+    /// results arrive pre-sorted by score descending.
+    #[allow(dead_code)]
+    pub score: f64,
+    pub show: TvMazeSearchShow,
 }
 
-/// Embedded resources in a TVMaze show response.
+/// Show metadata within a search result.
+///
+/// This is a subset of the full show object — just enough to identify the
+/// series and present it as a selectable candidate.
 #[derive(Debug, Deserialize)]
-pub(super) struct TvMazeEmbedded {
-    /// List of episodes when embed=episodes is used
-    pub episodes: Vec<TvMazeEpisode>,
+pub(super) struct TvMazeSearchShow {
+    pub id: u64,
+    pub name: String,
+    /// ISO date string like "2008-01-20", used to extract the premiere year
+    pub premiered: Option<String>,
 }
+
+// =========================================================
+// Episode types (/shows/{id}/episodes)
+// =========================================================
 
 /// A single episode from the TVMaze API.
 #[derive(Debug, Deserialize)]

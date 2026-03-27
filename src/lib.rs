@@ -83,6 +83,7 @@ pub use cache::CacheError;
 pub use file_operations::FileOperationError;
 pub use file_resolver::FileResolverError;
 pub use metadata_retrieval::MetadataRetrievalError;
+pub use metadata_retrieval::SeriesCandidate;
 pub use speech_to_text::SpeechToTextError;
 
 // Re-export file operations types
@@ -240,6 +241,10 @@ pub enum DialogDetectiveError {
     #[error("Episode matching error: {0}")]
     EpisodeMatching(#[from] EpisodeMatchingError),
 
+    /// User cancelled series selection
+    #[error("Series selection cancelled")]
+    SelectionCancelled,
+
     /// IO error
     #[error("IO error: {0}")]
     Io(#[from] io::Error),
@@ -301,16 +306,18 @@ pub enum DialogDetectiveError {
 ///     |_| {} // Ignore all progress events
 /// ).unwrap();
 /// ```
-pub fn investigate_case<F>(
+pub fn investigate_case<F, S>(
     directory: &Path,
     model_path: &Path,
     show_name: &str,
     season_filter: Option<Vec<usize>>,
     matcher_type: MatcherType,
     mut progress_callback: F,
+    select_series: S,
 ) -> Result<Vec<MatchResult>, DialogDetectiveError>
 where
     F: FnMut(ProgressEvent),
+    S: FnOnce(&[SeriesCandidate]) -> Result<usize, DialogDetectiveError>,
 {
     progress_callback(ProgressEvent::Started {
         directory: directory.to_path_buf(),
@@ -322,17 +329,12 @@ where
         show_name: show_name.to_string(),
     });
 
-    // Initialize metadata cache with 1-day TTL (24 hours)
-    let metadata_cache =
-        CacheStorage::<TVSeries>::open("metadata", Some(Duration::from_secs(24 * 60 * 60)))?;
-
-    // Initialize transcript cache with 1-day TTL (24 hours)
-    let transcript_cache =
-        CacheStorage::<Transcript>::open("transcripts", Some(Duration::from_secs(24 * 60 * 60)))?;
-
-    // Initialize matching cache with 1-day TTL (24 hours)
-    let matching_cache =
-        CacheStorage::<Episode>::open("matching", Some(Duration::from_secs(24 * 60 * 60)))?;
+    // Initialize caches with 1-day TTL (24 hours)
+    let one_day = Some(Duration::from_secs(24 * 60 * 60));
+    let search_cache = CacheStorage::<Vec<SeriesCandidate>>::open("search", one_day)?;
+    let metadata_cache = CacheStorage::<TVSeries>::open("metadata", one_day)?;
+    let transcript_cache = CacheStorage::<Transcript>::open("transcripts", one_day)?;
+    let matching_cache = CacheStorage::<Episode>::open("matching", one_day)?;
 
     // Clean expired caches at startup
     transcript_cache.clean()?;
@@ -340,9 +342,21 @@ where
 
     // Wrap the provider with caching
     let tvmaze_provider = TvMazeProvider::new();
-    let provider = CachedMetadataProvider::new(tvmaze_provider, metadata_cache);
+    let provider = CachedMetadataProvider::new(tvmaze_provider, search_cache, metadata_cache);
 
-    let series = provider.fetch_series(show_name, season_filter.clone())?;
+    // Search for series candidates and let the caller select one
+    let candidates = provider.search_series(show_name)?;
+
+    let selected_candidate = if candidates.len() == 1 {
+        // Single result — auto-select without prompting
+        &candidates[0]
+    } else {
+        // Multiple results — ask the caller to choose
+        let index = select_series(&candidates)?;
+        &candidates[index]
+    };
+
+    let series = provider.fetch_series(selected_candidate, season_filter.clone())?;
 
     progress_callback(ProgressEvent::MetadataFetched {
         series_name: series.name.clone(),

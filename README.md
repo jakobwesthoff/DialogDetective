@@ -65,7 +65,9 @@ dialog_detective --help
 
 DialogDetective takes the guesswork out of organizing TV series rips. Point it at a directory of video files, tell it the show name, and let AI do the detective work.
 
-The process is simple: extract audio from each video using [FFmpeg](https://ffmpeg.org/), transcribe the dialogue using [Whisper](https://github.com/ggerganov/whisper.cpp), fetch episode metadata from [TVMaze](https://www.tvmaze.com/), then use an LLM to match what was said to the correct episode. Finally, rename or copy the files with proper episode information.
+The process is simple: search [TVMaze](https://www.tvmaze.com/) for the show, extract audio from each video using [FFmpeg](https://ffmpeg.org/), transcribe the dialogue using [Whisper](https://github.com/ggerganov/whisper.cpp), then use an LLM to match what was said to the correct episode. Finally, rename or copy the files with proper episode information.
+
+If the show name matches multiple series (e.g. "Battlestar Galactica" returns both the 1978 and 2003 versions), you'll get an interactive selection prompt to pick the correct one. When titles are identical, the premiere year is shown to help distinguish them. A unique match is selected automatically.
 
 ### CLI Usage
 
@@ -247,7 +249,8 @@ All cached data is stored in a platform-specific cache directory:
 | Data | Directory | TTL | Why Cached |
 |------|-----------|-----|------------|
 | **Whisper Models** | `models/` | Permanent | Models are large (39MB - 2.9GB) and don't change. Downloaded once from HuggingFace on first use. |
-| **Series Metadata** | `metadata/` | 24 hours | Episode lists from TVMaze rarely change. Caching reduces API calls and speeds up repeated runs on the same show. |
+| **Search Results** | `search/` | 24 hours | TVMaze search results for show name queries. Avoids re-hitting the search API on repeated runs. |
+| **Series Metadata** | `metadata/` | 24 hours | Episode lists from TVMaze rarely change. Cached per show ID and season filter. |
 | **Transcripts** | `transcripts/` | 24 hours | Whisper transcription is CPU/GPU intensive. Caching by video file hash means re-running on the same files skips transcription entirely. |
 | **Match Results** | `matching/` | 24 hours | LLM matching costs tokens and time. Results are cached by a composite key (video hash + show + seasons + matcher), so identical queries return instantly. |
 

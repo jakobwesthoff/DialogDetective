@@ -1,7 +1,7 @@
 use clap::{Parser, ValueEnum};
 use dialog_detective::{
-    MatcherType, ProgressEvent, execute_copy, execute_rename, investigate_case, model_downloader,
-    plan_operations,
+    DialogDetectiveError, MatcherType, ProgressEvent, SeriesCandidate, execute_copy,
+    execute_rename, investigate_case, model_downloader, plan_operations,
 };
 use std::path::PathBuf;
 use std::process;
@@ -256,6 +256,51 @@ fn display_model_list_and_exit() {
     process::exit(0);
 }
 
+/// Presents an interactive series selection prompt using `dialoguer::Select`.
+///
+/// Builds display labels with year disambiguation: if two candidates share
+/// the same name, both get a "(year)" suffix to tell them apart.
+fn select_series_interactive(
+    candidates: &[SeriesCandidate],
+) -> Result<usize, DialogDetectiveError> {
+    use std::collections::HashMap;
+
+    // Count how many times each name appears so we know when to show the year
+    let mut name_counts: HashMap<&str, usize> = HashMap::new();
+    for candidate in candidates {
+        *name_counts.entry(&candidate.name).or_default() += 1;
+    }
+
+    // Build display labels with year disambiguation
+    let display_items: Vec<String> = candidates
+        .iter()
+        .map(|c| {
+            if name_counts.get(c.name.as_str()).copied().unwrap_or(0) > 1 {
+                match c.year {
+                    Some(year) => format!("{} ({})", c.name, year),
+                    None => format!("{} (unknown year)", c.name),
+                }
+            } else {
+                c.name.clone()
+            }
+        })
+        .collect();
+
+    println!();
+
+    let selection = dialoguer::Select::with_theme(&dialoguer::theme::ColorfulTheme::default())
+        .with_prompt("🔎 Multiple matches found — select the correct series")
+        .items(&display_items)
+        .default(0)
+        .interact_opt()
+        .map_err(|e| DialogDetectiveError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+
+    match selection {
+        Some(index) => Ok(index),
+        None => Err(DialogDetectiveError::SelectionCancelled),
+    }
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -363,6 +408,7 @@ fn main() {
         season_filter,
         cli.matcher.into(),
         handle_progress_event,
+        select_series_interactive,
     ) {
         Ok(matches) => {
             if matches.is_empty() {

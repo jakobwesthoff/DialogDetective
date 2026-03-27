@@ -1,12 +1,19 @@
 /// TVMaze metadata provider implementation.
-use super::tvmaze_types::{TvMazeEpisode, TvMazeShow};
-use super::{Episode, MetadataProvider, MetadataRetrievalError, Season, TVSeries};
+///
+/// Uses the search endpoint to find candidates, then fetches episodes
+/// for the selected show in a separate request.
+use super::tvmaze_types::{TvMazeEpisode, TvMazeSearchResult};
+use super::{Episode, MetadataProvider, MetadataRetrievalError, Season, SeriesCandidate, TVSeries};
 use std::collections::HashMap;
+
+/// Maximum number of search results to return as candidates.
+const MAX_CANDIDATES: usize = 10;
 
 /// Metadata provider for the TVMaze API.
 ///
 /// This provider fetches TV series information from https://api.tvmaze.com
-/// using the singlesearch endpoint with embedded episodes.
+/// using the search endpoint for candidate discovery and the episodes
+/// endpoint for full metadata retrieval.
 pub(crate) struct TvMazeProvider {
     client: reqwest::blocking::Client,
     base_url: String,
@@ -34,22 +41,11 @@ impl TvMazeProvider {
         }
     }
 
-    /// Converts TVMaze show data to our internal TVSeries structure.
-    ///
-    /// Groups episodes by season and optionally filters by season numbers.
-    fn convert_to_series(
-        tvmaze_show: TvMazeShow,
+    /// Groups a flat list of episodes into sorted seasons, optionally filtered.
+    fn group_into_seasons(
+        episodes: Vec<TvMazeEpisode>,
         season_filter: Option<Vec<usize>>,
-    ) -> Result<TVSeries, MetadataRetrievalError> {
-        // Extract episodes from embedded data
-        let episodes = tvmaze_show
-            .embedded
-            .ok_or_else(|| {
-                MetadataRetrievalError::InvalidData("No episodes found in API response".to_string())
-            })?
-            .episodes;
-
-        // Group episodes by season number
+    ) -> Vec<Season> {
         let mut seasons_map: HashMap<usize, Vec<Episode>> = HashMap::new();
 
         for tvmaze_episode in episodes {
@@ -62,7 +58,7 @@ impl TvMazeProvider {
 
             seasons_map
                 .entry(tvmaze_episode.season)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(Self::convert_episode(tvmaze_episode));
         }
 
@@ -70,7 +66,6 @@ impl TvMazeProvider {
         let mut seasons: Vec<Season> = seasons_map
             .into_iter()
             .map(|(season_number, mut episodes)| {
-                // Sort episodes by episode number within each season
                 episodes.sort_by_key(|e| e.episode_number);
                 Season {
                     season_number,
@@ -79,41 +74,33 @@ impl TvMazeProvider {
             })
             .collect();
 
-        // Sort seasons by season number
         seasons.sort_by_key(|s| s.season_number);
+        seasons
+    }
 
-        Ok(TVSeries {
-            name: tvmaze_show.name,
-            seasons,
-        })
+    /// Extracts a four-digit year from an ISO date string like "2008-01-20".
+    fn extract_year(premiered: &str) -> Option<u16> {
+        premiered
+            .split('-')
+            .next()
+            .and_then(|year_str| year_str.parse().ok())
     }
 }
 
 impl MetadataProvider for TvMazeProvider {
-    fn fetch_series(
+    fn search_series(
         &self,
         series_name: &str,
-        season_numbers: Option<Vec<usize>>,
-    ) -> Result<TVSeries, MetadataRetrievalError> {
-        // Build the API URL
-        let url = format!("{}/singlesearch/shows", self.base_url);
+    ) -> Result<Vec<SeriesCandidate>, MetadataRetrievalError> {
+        let url = format!("{}/search/shows", self.base_url);
 
-        // Make the HTTP request with query parameters
         let response = self
             .client
             .get(&url)
-            .query(&[("q", series_name), ("embed", "episodes")])
+            .query(&[("q", series_name)])
             .send()
             .map_err(|e| MetadataRetrievalError::RequestError(e.to_string()))?;
 
-        // Check if the series was found
-        if response.status() == 404 {
-            return Err(MetadataRetrievalError::SeriesNotFound(
-                series_name.to_string(),
-            ));
-        }
-
-        // Ensure request was successful
         if !response.status().is_success() {
             return Err(MetadataRetrievalError::RequestError(format!(
                 "HTTP {} {}",
@@ -122,12 +109,67 @@ impl MetadataProvider for TvMazeProvider {
             )));
         }
 
-        // Parse the JSON response
-        let tvmaze_show: TvMazeShow = response
+        let results: Vec<TvMazeSearchResult> = response
             .json()
             .map_err(|e| MetadataRetrievalError::ParseError(e.to_string()))?;
 
-        // Convert to our internal structures
-        Self::convert_to_series(tvmaze_show, season_numbers)
+        // The search endpoint returns results sorted by score descending.
+        // Take only the top N candidates.
+        let candidates: Vec<SeriesCandidate> = results
+            .into_iter()
+            .take(MAX_CANDIDATES)
+            .map(|result| SeriesCandidate {
+                id: result.show.id,
+                name: result.show.name,
+                year: result.show.premiered.as_deref().and_then(Self::extract_year),
+            })
+            .collect();
+
+        if candidates.is_empty() {
+            return Err(MetadataRetrievalError::SeriesNotFound(
+                series_name.to_string(),
+            ));
+        }
+
+        Ok(candidates)
+    }
+
+    fn fetch_series(
+        &self,
+        candidate: &SeriesCandidate,
+        season_numbers: Option<Vec<usize>>,
+    ) -> Result<TVSeries, MetadataRetrievalError> {
+        let url = format!("{}/shows/{}/episodes", self.base_url, candidate.id);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .map_err(|e| MetadataRetrievalError::RequestError(e.to_string()))?;
+
+        if response.status() == 404 {
+            return Err(MetadataRetrievalError::SeriesNotFound(
+                candidate.name.clone(),
+            ));
+        }
+
+        if !response.status().is_success() {
+            return Err(MetadataRetrievalError::RequestError(format!(
+                "HTTP {} {}",
+                response.status().as_u16(),
+                response.status().canonical_reason().unwrap_or("Unknown")
+            )));
+        }
+
+        let episodes: Vec<TvMazeEpisode> = response
+            .json()
+            .map_err(|e| MetadataRetrievalError::ParseError(e.to_string()))?;
+
+        let seasons = Self::group_into_seasons(episodes, season_numbers);
+
+        Ok(TVSeries {
+            name: candidate.name.clone(),
+            seasons,
+        })
     }
 }

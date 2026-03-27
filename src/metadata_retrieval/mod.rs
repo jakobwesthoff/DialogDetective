@@ -33,6 +33,20 @@ pub enum MetadataRetrievalError {
     InvalidData(String),
 }
 
+/// A candidate TV series returned from a search query.
+///
+/// Represents a potential match before the user has confirmed which series
+/// they want. Contains just enough information for display and selection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SeriesCandidate {
+    /// Provider-specific ID (e.g. TVMaze show ID)
+    pub id: u64,
+    /// Series name as returned by the provider
+    pub name: String,
+    /// Premiere year (extracted from premiered date), if available
+    pub year: Option<u16>,
+}
+
 /// Represents a single episode of a TV series.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Episode {
@@ -66,23 +80,28 @@ pub(crate) struct TVSeries {
 
 /// Trait for metadata providers that can fetch TV series information.
 ///
-/// Implementors of this trait can retrieve episode metadata from various sources
-/// such as TVDB, TMDB, or other episode databases.
+/// The retrieval process is split into two steps: searching for candidates
+/// and then fetching full episode data for the selected candidate. This
+/// allows the caller to present multiple matches and let the user choose.
 pub(crate) trait MetadataProvider {
-    /// Fetches metadata for a TV series.
+    /// Searches for TV series matching the given name.
+    ///
+    /// Returns up to 10 candidates sorted by relevance score.
+    fn search_series(
+        &self,
+        series_name: &str,
+    ) -> Result<Vec<SeriesCandidate>, MetadataRetrievalError>;
+
+    /// Fetches full episode metadata for a specific series candidate.
     ///
     /// # Arguments
     ///
-    /// * `series_name` - The name of the TV series to fetch
+    /// * `candidate` - The selected series candidate from `search_series`
     /// * `season_numbers` - Optional list of specific season numbers to retrieve.
     ///                      If None, all seasons will be fetched.
-    ///
-    /// # Returns
-    ///
-    /// A Result containing the TVSeries with metadata, or a MetadataRetrievalError
     fn fetch_series(
         &self,
-        series_name: &str,
+        candidate: &SeriesCandidate,
         season_numbers: Option<Vec<usize>>,
     ) -> Result<TVSeries, MetadataRetrievalError>;
 }
