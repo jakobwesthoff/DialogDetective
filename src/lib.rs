@@ -269,8 +269,10 @@ pub enum DialogDetectiveError {
 /// * `model_path` - Path to the Whisper model file (e.g., ggml-base.bin)
 /// * `show_name` - The name of the TV show to fetch metadata for
 /// * `season_filter` - Optional list of season numbers to filter (None fetches all seasons)
-/// * `matcher_type` - The AI matcher to use (Gemini or Claude)
+/// * `matcher_type` - The AI matcher to use
 /// * `progress_callback` - Closure called with progress events (can be empty for silent operation)
+/// * `select_series` - Closure resolving ambiguous search results to the index of the
+///   chosen candidate. Only called when the search returns more than one candidate.
 ///
 /// # Returns
 ///
@@ -296,6 +298,12 @@ pub enum DialogDetectiveError {
 ///             }
 ///             _ => {} // Handle other events as needed
 ///         }
+///     },
+///     |candidates| {
+///         for candidate in candidates {
+///             println!("{} ({:?})", candidate.name, candidate.year);
+///         }
+///         Ok(0) // Always take the first candidate
 ///     }
 /// ).unwrap();
 ///
@@ -306,7 +314,8 @@ pub enum DialogDetectiveError {
 ///     "Breaking Bad",
 ///     None,  // All seasons
 ///     MatcherType::Claude,
-///     |_| {} // Ignore all progress events
+///     |_| {}, // Ignore all progress events
+///     |_| Ok(0) // Always take the first candidate
 /// ).unwrap();
 /// ```
 pub fn investigate_case<F, S>(

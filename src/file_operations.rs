@@ -66,6 +66,8 @@ pub fn sanitize_filename(name: &str) -> String {
 /// # Examples
 ///
 /// ```
+/// use dialog_detective::format_filename;
+///
 /// let result = format_filename(
 ///     "{show} - S{season:02}E{episode:02} - {title}.{ext}",
 ///     "Breaking Bad",
@@ -74,7 +76,8 @@ pub fn sanitize_filename(name: &str) -> String {
 ///     "Cat's in the Bag...",
 ///     "mp4"
 /// );
-/// assert_eq!(result, "Breaking Bad - S01E02 - Cat's in the Bag....mp4");
+/// // Trailing dots are stripped by `sanitize_filename`.
+/// assert_eq!(result, "Breaking Bad - S01E02 - Cat's in the Bag.mp4");
 /// ```
 pub fn format_filename(
     format: &str,
