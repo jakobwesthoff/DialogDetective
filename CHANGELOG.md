@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- `claude-haiku` matcher backend, running the Claude Code CLI with the Haiku model
+- `MatcherType::ClaudeHaiku` public enum variant
+
+### Changed
+- The `claude` matcher now explicitly requests the Sonnet model instead of inheriting whatever
+  model the local Claude Code CLI is configured to default to
+
+### Fixed
+- Documented `--matcher` default as `gemini-flash`, matching the actual CLI default
+
 ## 2.0.0 - 2026-03-27
 
 ### Added

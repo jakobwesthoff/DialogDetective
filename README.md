@@ -84,7 +84,7 @@ dialog_detective <VIDEO_DIR> <SHOW_NAME> [OPTIONS]
 | `-s, --season <N>` | All | Filter to specific season(s), repeatable |
 | `--model <NAME>` | base | Whisper model (tiny/base/small/medium/large) |
 | `--model-path <PATH>` | - | Custom Whisper model file path |
-| `-m, --matcher <BACKEND>` | gemini | AI backend: gemini or claude |
+| `-m, --matcher <BACKEND>` | gemini-flash | AI backend: gemini, gemini-flash, claude, or claude-haiku |
 | `--mode <MODE>` | dry-run | Operation: dry-run, rename, or copy |
 | `-o, --output-dir <DIR>` | - | Output directory (required for copy mode) |
 | `--format <PATTERN>` | See below | Custom filename template |
@@ -217,17 +217,29 @@ See the [whisper-rs documentation](https://github.com/tazz4843/whisper-rs#featur
 
 DialogDetective uses external CLI tools for LLM access. You must have one of the following installed and authenticated:
 
-- [Gemini CLI](https://github.com/google-gemini/gemini-cli) (default) - Google's Gemini models
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli) - Google's Gemini models
 - [Claude Code](https://claude.ai/code) - Anthropic's Claude models
 
 The CLI must be working independently before DialogDetective can use it. Test with `gemini` or `claude` in your terminal.
 
+The `--matcher` option selects both the CLI and the model it runs:
+
+| Backend | CLI | Model |
+|---------|-----|-------|
+| `gemini-flash` | `gemini` | `gemini-2.5-flash` |
+| `gemini` | `gemini` | The CLI's configured default |
+| `claude` | `claude` | Sonnet |
+| `claude-haiku` | `claude` | Haiku |
+
 ```bash
-# Use Gemini (default)
+# Use Gemini with gemini-2.5-flash (default)
 dialog_detective ./videos "Show" -s 1
 
-# Use Claude
+# Use Claude with Sonnet
 dialog_detective ./videos "Show" -s 1 --matcher claude
+
+# Use Claude with the faster, cheaper Haiku model
+dialog_detective ./videos "Show" -s 1 --matcher claude-haiku
 ```
 
 The interface is abstracted to easily support direct API access in the future. Contributions welcome!
