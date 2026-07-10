@@ -14,9 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The `claude` matcher now explicitly requests the Sonnet model instead of inheriting whatever
   model the local Claude Code CLI is configured to default to
+- Upgraded `reqwest` to 0.13, which renames the `rustls-tls` feature to `rustls`, moves `query`
+  behind its own feature flag, and switches the rustls crypto provider from `ring` to `aws-lc-rs`
+- Upgraded `whisper-rs` to 0.16 (`whisper-rs-sys` 0.15), raising the minimum supported Rust
+  version to 1.88.0
+- Refreshed `Cargo.lock` to the latest semver-compatible versions of all dependencies
 
 ### Fixed
 - Documented `--matcher` default as `gemini-flash`, matching the actual CLI default
+- The `investigate_case` and `format_filename` doctests no longer compiled against the current
+  API and were never executed as a result
 
 ## 2.0.0 - 2026-03-27
 
