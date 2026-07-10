@@ -86,8 +86,10 @@ enum Matcher {
     Gemini,
     /// Gemini CLI with gemini-2.5-flash model (default, requires 'gemini' in PATH)
     GeminiFlash,
-    /// Claude Code CLI (requires 'claude' in PATH)
+    /// Claude Code CLI with the Sonnet model (requires 'claude' in PATH)
     Claude,
+    /// Claude Code CLI with the Haiku model (requires 'claude' in PATH)
+    ClaudeHaiku,
 }
 
 impl From<Matcher> for MatcherType {
@@ -96,6 +98,7 @@ impl From<Matcher> for MatcherType {
             Matcher::Gemini => MatcherType::Gemini,
             Matcher::GeminiFlash => MatcherType::GeminiFlash,
             Matcher::Claude => MatcherType::Claude,
+            Matcher::ClaudeHaiku => MatcherType::ClaudeHaiku,
         }
     }
 }

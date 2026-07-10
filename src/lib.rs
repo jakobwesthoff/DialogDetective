@@ -68,6 +68,7 @@ fn compute_matching_cache_key(
         MatcherType::Gemini => "gemini",
         MatcherType::GeminiFlash => "gemini-flash",
         MatcherType::Claude => "claude",
+        MatcherType::ClaudeHaiku => "claude-haiku",
     };
 
     format!(
@@ -103,8 +104,10 @@ pub enum MatcherType {
     Gemini,
     /// Use Gemini CLI with gemini-2.5-flash model
     GeminiFlash,
-    /// Use Claude Code CLI for episode matching
+    /// Use Claude Code CLI with the Sonnet model
     Claude,
+    /// Use Claude Code CLI with the Haiku model
+    ClaudeHaiku,
 }
 
 /// Progress event emitted during investigation
@@ -384,7 +387,14 @@ where
             prompt_generator,
             Some("gemini-2.5-flash".to_string()),
         )),
-        MatcherType::Claude => Box::new(ClaudeCodeMatcher::new(prompt_generator)),
+        MatcherType::Claude => Box::new(ClaudeCodeMatcher::new(
+            prompt_generator,
+            Some("sonnet".to_string()),
+        )),
+        MatcherType::ClaudeHaiku => Box::new(ClaudeCodeMatcher::new(
+            prompt_generator,
+            Some("haiku".to_string()),
+        )),
     };
 
     let mut match_results = Vec::new();

@@ -25,12 +25,20 @@ struct ClaudeResponse {
 pub(crate) struct ClaudeCodeMatcher<G: SinglePromptGenerator> {
     /// The prompt generator to use for creating prompts
     generator: G,
+    /// Optional model to use (e.g., "sonnet")
+    model: Option<String>,
 }
 
 impl<G: SinglePromptGenerator> ClaudeCodeMatcher<G> {
-    /// Creates a new ClaudeCodeMatcher with the given prompt generator
-    pub fn new(generator: G) -> Self {
-        Self { generator }
+    /// Creates a new ClaudeCodeMatcher with the given prompt generator and optional model
+    ///
+    /// # Arguments
+    ///
+    /// * `generator` - The prompt generator to use
+    /// * `model` - Optional model alias or full name (e.g., "sonnet", "haiku").
+    ///   When `None`, the Claude CLI falls back to the user's configured default.
+    pub fn new(generator: G, model: Option<String>) -> Self {
+        Self { generator, model }
     }
 
     /// Checks if the claude CLI is installed and available
@@ -45,7 +53,7 @@ impl<G: SinglePromptGenerator> ClaudeCodeMatcher<G> {
     }
 
     /// Sends a prompt to Claude Code CLI and returns the response
-    fn call_claude(prompt: &str) -> Result<String, EpisodeMatchingError> {
+    fn call_claude(prompt: &str, model: &Option<String>) -> Result<String, EpisodeMatchingError> {
         // Check if claude is installed
         if !Self::is_claude_installed() {
             return Err(EpisodeMatchingError::ServiceError(
@@ -53,18 +61,20 @@ impl<G: SinglePromptGenerator> ClaudeCodeMatcher<G> {
             ));
         }
 
-        // Spawn claude process with stdin
-        let mut child = Command::new("claude")
-            .arg("-p")
-            .arg("--output-format")
-            .arg("text")
-            .stdin(Stdio::piped())
+        // Build command with optional model parameter
+        let mut cmd = Command::new("claude");
+        cmd.arg("-p").arg("--output-format").arg("text");
+        if let Some(model_name) = model {
+            cmd.arg("--model").arg(model_name);
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                EpisodeMatchingError::ServiceError(format!("Failed to spawn claude CLI: {}", e))
-            })?;
+            .stderr(Stdio::piped());
+
+        // Spawn claude process with stdin
+        let mut child = cmd.spawn().map_err(|e| {
+            EpisodeMatchingError::ServiceError(format!("Failed to spawn claude CLI: {}", e))
+        })?;
 
         // Write prompt to stdin
         if let Some(mut stdin) = child.stdin.take() {
@@ -156,7 +166,7 @@ impl<G: SinglePromptGenerator> EpisodeMatcher for ClaudeCodeMatcher<G> {
         let prompt = self.generator.generate_single_prompt(transcript, series);
 
         // Call Claude CLI
-        let response = Self::call_claude(&prompt)?;
+        let response = Self::call_claude(&prompt, &self.model)?;
 
         // Extract JSON block
         let json_str = Self::extract_json_block(&response)?;
