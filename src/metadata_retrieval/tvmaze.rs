@@ -121,7 +121,11 @@ impl MetadataProvider for TvMazeProvider {
             .map(|result| SeriesCandidate {
                 id: result.show.id,
                 name: result.show.name,
-                year: result.show.premiered.as_deref().and_then(Self::extract_year),
+                year: result
+                    .show
+                    .premiered
+                    .as_deref()
+                    .and_then(Self::extract_year),
             })
             .collect();
 
