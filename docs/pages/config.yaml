@@ -1,6 +1,8 @@
 name: DialogDetective
 tagline: AI-powered TV episode identification from dialogue
 github: jakobwesthoff/DialogDetective
+url: https://dialogdetective.westhoffswelt.de
+og_image: assets/og.png
 
 author:
   name: Jakob Westhoff
