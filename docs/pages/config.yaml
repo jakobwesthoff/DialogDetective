@@ -3,6 +3,7 @@ tagline: AI-powered TV episode identification from dialogue
 github: jakobwesthoff/DialogDetective
 url: https://dialogdetective.westhoffswelt.de
 og_image: assets/og.png
+og_image_alt: "DialogDetective: AI listens to the dialogue and names your episodes. A terminal lists video files and the episode names they get."
 
 author:
   name: Jakob Westhoff
